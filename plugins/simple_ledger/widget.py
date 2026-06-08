@@ -15,7 +15,7 @@ from PyQt5.QtCore import Qt, QDate
 from PyQt5.QtGui import QFont, QColor
 
 _project_root = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "..")
+    os.path.join(os.path.dirname(__file__), "..", "..")
 )
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)

@@ -8,13 +8,16 @@ dist/
 build/
 *.egg
 
-# 数据库 (运行时数据存放在用户数据目录)
-*.db
-src/data/
-src/exported/
-
-# 导出的插件包
+# 运行时数据（数据库、导出的插件包）
+data/treas.db
 exported/*.zip
+
+# 自定义插件（非内置的，用户导入的）
+plugins/*
+!plugins/calculator/
+!plugins/currency_converter/
+!plugins/simple_ledger/
+!plugins/social_insurance/
 
 # IDE
 .idea/

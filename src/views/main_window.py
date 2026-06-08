@@ -36,11 +36,12 @@ class ToolGridPage(QWidget):
     - update_plugins() 只更新网格内的卡片内容，不创建/销毁容器
     """
 
-    def __init__(self, parent=None, show_actions: bool = False):
+    def __init__(self, parent=None, show_actions: bool = False, title: str = "全部工具"):
         super().__init__(parent)
         self.tool_cards = []
         self.show_actions = show_actions
         self._plugins = []
+        self._page_title = title
         self._title_label = None
         self._scroll = None
         self._grid = None
@@ -123,9 +124,7 @@ class ToolGridPage(QWidget):
 
         # 2. 更新标题
         count = len(plugins)
-        self._title_label.setText(
-            f"全部工具 ({count})" if self.show_actions else f"工具 ({count})"
-        )
+        self._title_label.setText(f"{self._page_title} ({count})")
 
         # 3. 切换空提示/滚动区的显示
         if not plugins:
@@ -193,7 +192,7 @@ class MainWindow(FluentWindow):
 
         for cat in categories:
             plugins = self.pm.get_plugins_by_category(cat["name"])
-            page = ToolGridPage(self)
+            page = ToolGridPage(self, title=cat["name"])
             page.setObjectName(f"catPage_{cat['id']}")
             page.update_plugins(plugins)
             icon = fluent_icon_from_name(cat.get("icon", "APPLICATION"))
@@ -331,7 +330,8 @@ class MainWindow(FluentWindow):
                     # 更新页面标题
                     if cat["name"] in self._category_pages:
                         page = self._category_pages[cat["name"]]
-                        page._title_label.setText(data["name"])
+                        page._page_title = data["name"]
+                        page._title_label.setText(f"{data['name']} ({len(page._plugins)})")
                         # 更新映射
                         self._category_pages[data["name"]] = page
                         if data["name"] != cat["name"]:

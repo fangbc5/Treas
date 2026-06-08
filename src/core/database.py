@@ -1,9 +1,10 @@
 """数据库管理模块 - SQLite 本地存储"""
 
 import sqlite3
-import sys
 import os
 from datetime import datetime
+
+from src.core.paths import get_db_path
 
 
 class Database:
@@ -17,31 +18,11 @@ class Database:
             cls._instance._initialized = False
         return cls._instance
 
-    def _get_data_dir(self):
-        """获取跨平台应用数据目录"""
-        app_name = "Treas"
-        if sys.platform == "darwin":
-            base = os.path.expanduser("~/Library/Application Support")
-        elif sys.platform == "win32":
-            base = os.environ.get(
-                "LOCALAPPDATA",
-                os.path.expanduser("~/AppData/Local")
-            )
-        else:  # Linux 及其他
-            base = os.environ.get(
-                "XDG_DATA_HOME",
-                os.path.expanduser("~/.local/share")
-            )
-        data_dir = os.path.join(base, app_name)
-        os.makedirs(data_dir, exist_ok=True)
-        return data_dir
-
     def __init__(self, db_path=None):
         if self._initialized:
             return
         if db_path is None:
-            data_dir = self._get_data_dir()
-            db_path = os.path.join(data_dir, "treas.db")
+            db_path = get_db_path()
         self.db_path = db_path
         self._initialized = True
         self._init_tables()

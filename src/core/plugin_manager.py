@@ -43,10 +43,8 @@ class PluginManager:
 
     def discover_plugins(self):
         """扫描 plugins/ 目录，发现所有可用插件"""
-        plugins_dir = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "plugins"
-        )
+        from src.core.paths import get_plugins_dir
+        plugins_dir = get_plugins_dir()
 
         if not os.path.isdir(plugins_dir):
             return

@@ -4,6 +4,7 @@ import os
 import shutil
 import zipfile
 from src.core.plugin_manager import PluginManager
+from src.core.paths import get_export_dir, get_plugins_dir
 
 
 class ShareManager:
@@ -11,10 +12,8 @@ class ShareManager:
 
     def __init__(self):
         self.pm = PluginManager()
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        self.export_dir = os.path.join(base_dir, "exported")
-        self.plugins_dir = os.path.join(base_dir, "plugins")
-        os.makedirs(self.export_dir, exist_ok=True)
+        self.export_dir = get_export_dir()
+        self.plugins_dir = get_plugins_dir()
 
     def export_plugin(self, plugin_id: str) -> str:
         """将插件打包为 zip 文件，返回 zip 路径"""
