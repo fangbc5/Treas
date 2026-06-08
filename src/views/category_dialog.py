@@ -5,11 +5,12 @@ from PyQt5.QtWidgets import (
     QLineEdit, QLabel, QPushButton,
 )
 from PyQt5.QtCore import Qt, QSize
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QColor, QPalette
 
 from qfluentwidgets import (
     PrimaryPushButton, PushButton, FluentIcon,
     StrongBodyLabel, CaptionLabel, ToolButton, InfoBar,
+    TransparentToolButton,
 )
 
 from src.utils.icons import CATEGORY_ICONS
@@ -79,17 +80,26 @@ class CategoryDialog(QDialog):
         btn_layout.addStretch()
 
         cancel_btn = PushButton("取消")
+        cancel_btn.setIcon(FluentIcon.CANCEL)
+        cancel_btn.setMinimumWidth(80)
         cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(cancel_btn)
 
         if self.category:
             delete_btn = PushButton("删除")
-            delete_btn.setStyleSheet("color: #d32f2f;")
             delete_btn.setIcon(FluentIcon.DELETE)
+            delete_btn.setMinimumWidth(80)
+            # 用 QPalette 设置红色，不覆盖 Fluent 内部样式表
+            palette = delete_btn.palette()
+            palette.setColor(QPalette.ButtonText, QColor("#d32f2f"))
+            palette.setColor(QPalette.Text, QColor("#d32f2f"))
+            delete_btn.setPalette(palette)
             delete_btn.clicked.connect(self._mark_delete)
             btn_layout.addWidget(delete_btn)
 
         ok_btn = PrimaryPushButton("确定")
+        ok_btn.setIcon(FluentIcon.ACCEPT)
+        ok_btn.setMinimumWidth(80)
         ok_btn.clicked.connect(self._validate_and_accept)
         btn_layout.addWidget(ok_btn)
 

@@ -7,5 +7,6 @@
     "icon": "APPLICATION",
     "entry": "widget.py",
     "entry_class": "CalculatorWidget",
+    "window_size": [340, 500],
     "author": "Treas"
 }

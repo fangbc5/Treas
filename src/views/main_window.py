@@ -72,12 +72,6 @@ class ToolGridPage(QWidget):
             import_btn.clicked.connect(lambda: self._get_main_window()._import_plugin())
             header_layout.addWidget(import_btn)
 
-            manage_btn = self._create_header_button("管理分类", FluentIcon.SETTING)
-            manage_btn.clicked.connect(
-                lambda: self._get_main_window()._manage_category_from_toolbar()
-            )
-            header_layout.addWidget(manage_btn)
-
         layout.addLayout(header_layout)
 
         # 占位空提示（固定结构，与 scroll 互斥显示）
@@ -494,6 +488,13 @@ class MainWindow(FluentWindow):
 
         menu = RoundMenu(parent=self)
 
+        # 编辑分类
+        edit_action = Action(FluentIcon.EDIT.icon(), "编辑分类")
+        edit_action.triggered.connect(lambda: self._edit_category(cat))
+        menu.addAction(edit_action)
+
+        menu.addSeparator()
+
         if clicked_idx > 0:
             up_action = Action(FluentIcon.UP.icon(), "上移")
             up_action.triggered.connect(lambda: self._move_category(cat, "up"))
@@ -504,8 +505,7 @@ class MainWindow(FluentWindow):
             down_action.triggered.connect(lambda: self._move_category(cat, "down"))
             menu.addAction(down_action)
 
-        if menu.actions():
-            menu.exec_(global_pos)
+        menu.exec_(global_pos)
 
     def _install_nav_context_menus(self):
         """为每个分类导航项安装事件过滤器（右键菜单）"""

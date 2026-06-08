@@ -36,15 +36,16 @@ class CalculatorWidget(PluginBase):
 
     def _init_ui(self):
         layout = QVBoxLayout(self)
-        layout.setSpacing(8)
-        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(4)
+        layout.setContentsMargins(8, 8, 8, 8)
 
         # 显示屏
         self.display = QLineEdit("0")
         self.display.setAlignment(Qt.AlignRight)
-        self.display.setFont(QFont("", 24))
+        self.display.setFont(QFont("", 20))
         self.display.setReadOnly(True)
-        self.display.setMinimumHeight(60)
+        self.display.setMinimumHeight(48)
+        self.display.setMaximumHeight(56)
         self.display.setStyleSheet("""
             QLineEdit {
                 background: #2d2d2d;
@@ -64,7 +65,7 @@ class CalculatorWidget(PluginBase):
 
         # 按钮网格
         grid = QGridLayout()
-        grid.setSpacing(6)
+        grid.setSpacing(4)
 
         buttons = [
             # (text, row, col, rowspan, colspan, style)
@@ -97,8 +98,8 @@ class CalculatorWidget(PluginBase):
         styles = {
             "num": """
                 QPushButton {
-                    background: #f5f5f5; border: none; border-radius: 8px;
-                    font-size: 18px; padding: 12px;
+                    background: #f5f5f5; border: none; border-radius: 6px;
+                    font-size: 16px; padding: 8px;
                 }
                 QPushButton:hover { background: #e0e0e0; }
                 QPushButton:pressed { background: #d0d0d0; }
@@ -106,15 +107,15 @@ class CalculatorWidget(PluginBase):
             "op": """
                 QPushButton {
                     background: #4a90d9; color: white; border: none;
-                    border-radius: 8px; font-size: 18px; padding: 12px;
+                    border-radius: 6px; font-size: 16px; padding: 8px;
                 }
                 QPushButton:hover { background: #357abd; }
                 QPushButton:pressed { background: #2a6aad; }
             """,
             "func": """
                 QPushButton {
-                    background: #e8e8e8; border: none; border-radius: 8px;
-                    font-size: 16px; padding: 12px;
+                    background: #e8e8e8; border: none; border-radius: 6px;
+                    font-size: 14px; padding: 8px;
                 }
                 QPushButton:hover { background: #d8d8d8; }
                 QPushButton:pressed { background: #c8c8c8; }
@@ -122,7 +123,7 @@ class CalculatorWidget(PluginBase):
             "eq": """
                 QPushButton {
                     background: #34c759; color: white; border: none;
-                    border-radius: 8px; font-size: 20px; padding: 12px;
+                    border-radius: 6px; font-size: 18px; padding: 8px;
                 }
                 QPushButton:hover { background: #2ab74a; }
                 QPushButton:pressed { background: #1fa73a; }
@@ -132,7 +133,7 @@ class CalculatorWidget(PluginBase):
         for text, row, col, rs, cs, style_type in buttons:
             btn = QPushButton(text)
             btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            btn.setMinimumHeight(44)
+            btn.setMinimumHeight(36)
             btn.setStyleSheet(styles[style_type])
             btn.clicked.connect(lambda checked, t=text: self._on_button(t))
             grid.addWidget(btn, row, col, rs, cs)

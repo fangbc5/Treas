@@ -7,6 +7,7 @@ from PyQt5.QtGui import QFont
 from qfluentwidgets import FluentIcon
 
 from src.utils.icons import fluent_icon_from_name
+from src.core.plugin_manager import PluginManager
 
 
 class PluginWindow(QMainWindow):
@@ -18,13 +19,23 @@ class PluginWindow(QMainWindow):
         self._init_ui()
 
     def _init_ui(self):
-        meta = self.plugin.get_meta()
+        # 从 PluginManager 获取完整的 plugin.json 元数据
+        pm = PluginManager()
+        meta = pm.get_plugin_meta(self.plugin.plugin_id) or self.plugin.get_meta()
         icon_name = meta.get("icon", "APPLICATION")
         icon = fluent_icon_from_name(icon_name)
         self.setWindowIcon(icon.icon())
         self.setWindowTitle(meta.get("name", "工具"))
-        self.setMinimumSize(600, 500)
-        self.resize(700, 700)
+
+        # 支持 plugin.json 中的 window_size 自定义窗口大小
+        win_size = meta.get("window_size", None)
+        if win_size and len(win_size) == 2:
+            w, h = win_size
+            self.setMinimumSize(w, h)
+            self.resize(w, h)
+        else:
+            self.setMinimumSize(600, 500)
+            self.resize(700, 700)
 
         # 中央容器
         central = QWidget()
@@ -37,12 +48,15 @@ class PluginWindow(QMainWindow):
         widget = self.plugin.get_widget()
         widget.setParent(central)
 
-        # 用滚动区域包裹，防止内容超出窗口
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QScrollArea.NoFrame)
-        scroll.setWidget(widget)
-        layout.addWidget(scroll)
+        # 小窗口直接嵌入，大窗口用滚动区域包裹
+        if win_size and len(win_size) == 2 and win_size[0] <= 400:
+            layout.addWidget(widget)
+        else:
+            scroll = QScrollArea()
+            scroll.setWidgetResizable(True)
+            scroll.setFrameShape(QScrollArea.NoFrame)
+            scroll.setWidget(widget)
+            layout.addWidget(scroll)
 
     def closeEvent(self, event):
         """窗口关闭时停用插件"""
