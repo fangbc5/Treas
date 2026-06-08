@@ -69,7 +69,7 @@ class ToolCard(CardWidget):
         btn_layout = QHBoxLayout()
 
         open_btn = PrimaryPushButton("打开")
-        open_btn.setIcon(FluentIcon.PLAY.icon())
+        open_btn.setIcon(FluentIcon.PLAY)
         open_btn.clicked.connect(lambda: self.clicked.emit(self.plugin_id))
         btn_layout.addWidget(open_btn)
 

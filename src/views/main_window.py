@@ -102,7 +102,7 @@ class ToolGridPage(QWidget):
     def _create_header_button(text: str, fluent_icon, primary: bool = False):
         """创建工具栏按钮"""
         btn = PrimaryPushButton(text) if primary else PushButton(text)
-        btn.setIcon(fluent_icon.icon())
+        btn.setIcon(fluent_icon)
         return btn
 
     def _get_main_window(self):

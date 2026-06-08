@@ -85,7 +85,7 @@ class CategoryDialog(QDialog):
         if self.category:
             delete_btn = PushButton("删除")
             delete_btn.setStyleSheet("color: #d32f2f;")
-            delete_btn.setIcon(FluentIcon.DELETE.icon())
+            delete_btn.setIcon(FluentIcon.DELETE)
             delete_btn.clicked.connect(self._mark_delete)
             btn_layout.addWidget(delete_btn)
 
