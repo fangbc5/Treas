@@ -1,0 +1,11 @@
+{
+    "id": "simple_ledger",
+    "name": "简易记账本",
+    "version": "1.0.0",
+    "description": "记录日常收支，轻松管理财务",
+    "category": "记账工具",
+    "icon": "LIBRARY",
+    "entry": "widget.py",
+    "entry_class": "PluginWidget",
+    "author": "Treas"
+}

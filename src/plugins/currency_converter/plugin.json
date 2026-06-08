@@ -1,0 +1,11 @@
+{
+    "id": "currency_converter",
+    "name": "汇率转换器",
+    "version": "1.0.0",
+    "description": "支持多种货币之间的汇率换算",
+    "category": "转换工具",
+    "icon": "SYNC",
+    "entry": "widget.py",
+    "entry_class": "PluginWidget",
+    "author": "Treas"
+}

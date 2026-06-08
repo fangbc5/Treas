@@ -1,0 +1,11 @@
+{
+    "id": "calculator",
+    "name": "通用计算器",
+    "version": "1.0.0",
+    "description": "支持基础四则运算的科学计算器",
+    "category": "计算工具",
+    "icon": "APPLICATION",
+    "entry": "widget.py",
+    "entry_class": "PluginWidget",
+    "author": "Treas"
+}
