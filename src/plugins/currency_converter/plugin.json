@@ -6,6 +6,6 @@
     "category": "转换工具",
     "icon": "SYNC",
     "entry": "widget.py",
-    "entry_class": "PluginWidget",
+    "entry_class": "CurrencyConverterWidget",
     "author": "Treas"
 }

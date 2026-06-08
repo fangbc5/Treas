@@ -6,6 +6,6 @@
     "category": "计算工具",
     "icon": "APPLICATION",
     "entry": "widget.py",
-    "entry_class": "PluginWidget",
+    "entry_class": "CalculatorWidget",
     "author": "Treas"
 }

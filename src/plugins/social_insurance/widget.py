@@ -5,9 +5,9 @@ import os
 
 from PyQt5.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QGridLayout,
-    QPushButton, QLabel, QComboBox, QGroupBox,
+    QPushButton, QLineEdit, QLabel, QComboBox, QGroupBox,
     QTableWidget, QTableWidgetItem, QHeaderView,
-    QSizePolicy, QSpinBox,
+    QSizePolicy, QScrollArea, QWidget,
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
@@ -89,40 +89,38 @@ class PluginWidget(PluginBase):
         layout.addWidget(hint)
 
         # === 输入区 ===
-        input_group = QGroupBox("输入信息")
-        input_group.setStyleSheet(GROUP_STYLE)
-        input_grid = QGridLayout(input_group)
-        input_grid.setSpacing(10)
-
-        # 税前月薪
-        input_grid.addWidget(QLabel("税前月薪（元）:"), 0, 0)
-        self.salary_input = QSpinBox()
-        self.salary_input.setRange(0, 9999999)
-        self.salary_input.setValue(10000)
-        self.salary_input.setSingleStep(1000)
-        self.salary_input.setSuffix(" 元")
-        self.salary_input.setStyleSheet(INPUT_STYLE)
-        input_grid.addWidget(self.salary_input, 0, 1)
+        # 月薪
+        row0 = QHBoxLayout()
+        row0.addWidget(QLabel("月薪:"))
+        self.salary_input = QLineEdit("10000")
+        self.salary_input.setPlaceholderText("输入月薪")
+        self.salary_input.setStyleSheet(
+            "padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;"
+        )
+        row0.addWidget(self.salary_input)
+        layout.addLayout(row0)
 
         # 年终奖
-        input_grid.addWidget(QLabel("年终奖（元）:"), 1, 0)
-        self.bonus_input = QSpinBox()
-        self.bonus_input.setRange(0, 9999999)
-        self.bonus_input.setValue(0)
-        self.bonus_input.setSingleStep(1000)
-        self.bonus_input.setSuffix(" 元")
-        self.bonus_input.setStyleSheet(INPUT_STYLE)
-        input_grid.addWidget(self.bonus_input, 1, 1)
+        row1 = QHBoxLayout()
+        row1.addWidget(QLabel("年终奖:"))
+        self.bonus_input = QLineEdit("0")
+        self.bonus_input.setPlaceholderText("输入年终奖")
+        self.bonus_input.setStyleSheet(
+            "padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;"
+        )
+        row1.addWidget(self.bonus_input)
+        layout.addLayout(row1)
 
         # 公积金比例
-        input_grid.addWidget(QLabel("公积金比例:"), 2, 0)
+        row2 = QHBoxLayout()
+        row2.addWidget(QLabel("公积金比例:"))
         self.fund_ratio = QComboBox()
         self.fund_ratio.addItems(
             ["5%", "6%", "7%", "8%", "9%", "10%", "11%", "12%"]
         )
         self.fund_ratio.setCurrentIndex(6)
-        self.fund_ratio.setStyleSheet(INPUT_STYLE)
-        input_grid.addWidget(self.fund_ratio, 2, 1)
+        row2.addWidget(self.fund_ratio)
+        layout.addLayout(row2)
 
         # 计算按钮
         calc_btn = QPushButton("开始计算")
@@ -135,9 +133,7 @@ class PluginWidget(PluginBase):
             QPushButton:pressed { background: #2a6aad; }
         """)
         calc_btn.clicked.connect(self._calculate)
-        input_grid.addWidget(calc_btn, 3, 0, 1, 2)
-
-        layout.addWidget(input_group)
+        layout.addWidget(calc_btn)
 
         # === 五险一金明细 ===
         ins_group = QGroupBox("月度五险一金明细")
@@ -177,8 +173,14 @@ class PluginWidget(PluginBase):
         self._calculate()
 
     def _calculate(self):
-        salary = self.salary_input.value()
-        bonus = self.bonus_input.value()
+        try:
+            salary = int(self.salary_input.text() or "0")
+        except ValueError:
+            salary = 0
+        try:
+            bonus = int(self.bonus_input.text() or "0")
+        except ValueError:
+            bonus = 0
         fund_pct = int(self.fund_ratio.currentText().rstrip("%"))
 
         # 五险一金比例（个人 / 单位）

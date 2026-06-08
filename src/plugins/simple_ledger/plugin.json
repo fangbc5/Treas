@@ -6,6 +6,6 @@
     "category": "记账工具",
     "icon": "LIBRARY",
     "entry": "widget.py",
-    "entry_class": "PluginWidget",
+    "entry_class": "SimpleLedgerWidget",
     "author": "Treas"
 }

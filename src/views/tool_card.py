@@ -15,7 +15,7 @@ from src.utils.icons import fluent_icon_from_name
 class ToolCard(CardWidget):
     """工具卡片 - Fluent 风格"""
 
-    clicked = pyqtSignal(str)
+    open_requested = pyqtSignal(str)
     export_requested = pyqtSignal(str)
     delete_requested = pyqtSignal(str)
 
@@ -70,7 +70,7 @@ class ToolCard(CardWidget):
 
         open_btn = PrimaryPushButton("打开")
         open_btn.setIcon(FluentIcon.PLAY)
-        open_btn.clicked.connect(lambda: self.clicked.emit(self.plugin_id))
+        open_btn.clicked.connect(lambda: self.open_requested.emit(self.plugin_id))
         btn_layout.addWidget(open_btn)
 
         share_btn = ToolButton(FluentIcon.SHARE)

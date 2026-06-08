@@ -210,7 +210,7 @@ class MainWindow(FluentWindow):
         """连接页面中卡片的信号"""
         for card in page.tool_cards:
             try:
-                card.clicked.disconnect()
+                card.open_requested.disconnect()
             except Exception:
                 pass
             try:
@@ -221,7 +221,7 @@ class MainWindow(FluentWindow):
                 card.delete_requested.disconnect()
             except Exception:
                 pass
-            card.clicked.connect(self._open_plugin)
+            card.open_requested.connect(self._open_plugin)
             card.export_requested.connect(self._export_single_plugin)
             card.delete_requested.connect(self._delete_plugin)
 
