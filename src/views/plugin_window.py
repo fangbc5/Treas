@@ -1,6 +1,6 @@
 """插件运行窗口 - 基于 Fluent 组件"""
 
-from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QWidget, QScrollArea
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
 
@@ -23,8 +23,8 @@ class PluginWindow(QMainWindow):
         icon = fluent_icon_from_name(icon_name)
         self.setWindowIcon(icon.icon())
         self.setWindowTitle(meta.get("name", "工具"))
-        self.setMinimumSize(500, 400)
-        self.resize(600, 500)
+        self.setMinimumSize(600, 500)
+        self.resize(700, 700)
 
         # 中央容器
         central = QWidget()
@@ -36,7 +36,13 @@ class PluginWindow(QMainWindow):
         self.plugin.on_activate()
         widget = self.plugin.get_widget()
         widget.setParent(central)
-        layout.addWidget(widget)
+
+        # 用滚动区域包裹，防止内容超出窗口
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        scroll.setWidget(widget)
+        layout.addWidget(scroll)
 
     def closeEvent(self, event):
         """窗口关闭时停用插件"""

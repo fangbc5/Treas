@@ -12,7 +12,7 @@ from src.core.database import Database
 
 
 # 首次发布时内置的插件 ID 列表（随应用分发）
-BUILTIN_PLUGIN_IDS = {"calculator", "currency_converter", "simple_ledger"}
+BUILTIN_PLUGIN_IDS = {"calculator", "currency_converter", "simple_ledger", "social_insurance"}
 
 
 class PluginManager:
@@ -158,8 +158,13 @@ class PluginManager:
             meta["plugin_id"] = plugin_id
             meta["is_builtin"] = self.is_builtin(plugin_id)
             result.append(meta)
-        # 内置工具置顶排序
-        result.sort(key=lambda p: (0 if p["is_builtin"] else 1, p.get("name", "")))
+        # 内置工具置顶排序（按固定顺序，再按名称）
+        _builtin_order = {pid: i for i, pid in enumerate(BUILTIN_PLUGIN_IDS)}
+        result.sort(key=lambda p: (
+            0 if p["is_builtin"] else 1,
+            _builtin_order.get(p["plugin_id"], 999),
+            p.get("name", ""),
+        ))
         return result
 
     def get_plugin_meta(self, plugin_id: str) -> Optional[dict]:
