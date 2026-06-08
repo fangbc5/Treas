@@ -1,17 +1,22 @@
 """五险一金计算器 - 计算社保、公积金、个税及年终奖"""
 
-from PyQt5.QtCore import Qt
+import sys
+import os
+
 from PyQt5.QtWidgets import (
-    QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
-    QHeaderView, QWidget,
+    QVBoxLayout, QHBoxLayout, QGridLayout,
+    QPushButton, QLabel, QComboBox, QGroupBox,
+    QTableWidget, QTableWidgetItem, QHeaderView,
+    QSizePolicy, QSpinBox,
 )
+from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
 
-from qfluentwidgets import (
-    CardWidget, StrongBodyLabel, BodyLabel, CaptionLabel,
-    LineEdit, ComboBox, PushButton, PrimaryPushButton,
-    TableWidget, HeaderCardWidget, SpinBox,
+_project_root = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "..")
 )
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
 
 from src.core.plugin_base import PluginBase
 
@@ -26,6 +31,23 @@ TAX_BRACKETS = [
     (960000, 0.35, 85920),
     (float('inf'), 0.45, 181920),
 ]
+
+# 统一的 QGroupBox 样式（和 currency_converter 一致）
+GROUP_STYLE = """
+    QGroupBox {
+        font-size: 14px; font-weight: bold;
+        border: 1px solid #ddd; border-radius: 8px;
+        margin-top: 12px; padding-top: 16px;
+    }
+    QGroupBox::title {
+        subcontrol-origin: margin;
+        left: 12px; padding: 0 6px;
+    }
+"""
+
+INPUT_STYLE = """
+    padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;
+"""
 
 
 def calc_tax(taxable_income: float) -> float:
@@ -56,90 +78,103 @@ class PluginWidget(PluginBase):
         layout.setSpacing(16)
         layout.setContentsMargins(24, 24, 24, 24)
 
-        # ========== 输入区 ==========
-        input_card = HeaderCardWidget(self)
-        input_card.setTitle("输入信息")
+        # 标题
+        title = QLabel("🧮 五险一金计算器")
+        title.setFont(QFont("", 16, QFont.Bold))
+        layout.addWidget(title)
 
-        input_layout = QGridLayout()
-        input_layout.setSpacing(12)
-        input_layout.setContentsMargins(20, 16, 20, 16)
+        # 提示
+        hint = QLabel("计算五险一金明细、工资个税及年终奖单独计税")
+        hint.setStyleSheet("color: #888; font-size: 11px;")
+        layout.addWidget(hint)
+
+        # === 输入区 ===
+        input_group = QGroupBox("输入信息")
+        input_group.setStyleSheet(GROUP_STYLE)
+        input_grid = QGridLayout(input_group)
+        input_grid.setSpacing(10)
 
         # 税前月薪
-        input_layout.addWidget(StrongBodyLabel("税前月薪（元）"), 0, 0)
-        self.salary_input = SpinBox()
+        input_grid.addWidget(QLabel("税前月薪（元）:"), 0, 0)
+        self.salary_input = QSpinBox()
         self.salary_input.setRange(0, 9999999)
         self.salary_input.setValue(10000)
         self.salary_input.setSingleStep(1000)
-        self.salary_input.suffix = " 元"
-        input_layout.addWidget(self.salary_input, 0, 1)
+        self.salary_input.setSuffix(" 元")
+        self.salary_input.setStyleSheet(INPUT_STYLE)
+        input_grid.addWidget(self.salary_input, 0, 1)
 
         # 年终奖
-        input_layout.addWidget(StrongBodyLabel("年终奖（元）"), 1, 0)
-        self.bonus_input = SpinBox()
+        input_grid.addWidget(QLabel("年终奖（元）:"), 1, 0)
+        self.bonus_input = QSpinBox()
         self.bonus_input.setRange(0, 9999999)
         self.bonus_input.setValue(0)
         self.bonus_input.setSingleStep(1000)
-        self.bonus_input.suffix = " 元"
-        input_layout.addWidget(self.bonus_input, 1, 1)
+        self.bonus_input.setSuffix(" 元")
+        self.bonus_input.setStyleSheet(INPUT_STYLE)
+        input_grid.addWidget(self.bonus_input, 1, 1)
 
         # 公积金比例
-        input_layout.addWidget(StrongBodyLabel("住房公积金比例"), 2, 0)
-        self.fund_ratio = ComboBox()
+        input_grid.addWidget(QLabel("公积金比例:"), 2, 0)
+        self.fund_ratio = QComboBox()
         self.fund_ratio.addItems(
             ["5%", "6%", "7%", "8%", "9%", "10%", "11%", "12%"]
         )
-        self.fund_ratio.setCurrentIndex(6)  # 默认 12%，index=7；改 7%
-        input_layout.addWidget(self.fund_ratio, 2, 1)
+        self.fund_ratio.setCurrentIndex(6)
+        self.fund_ratio.setStyleSheet(INPUT_STYLE)
+        input_grid.addWidget(self.fund_ratio, 2, 1)
 
         # 计算按钮
-        calc_btn = PrimaryPushButton("开始计算")
+        calc_btn = QPushButton("开始计算")
+        calc_btn.setStyleSheet("""
+            QPushButton {
+                background: #4a90d9; color: white; border: none;
+                border-radius: 6px; font-size: 14px; padding: 8px 24px;
+            }
+            QPushButton:hover { background: #357abd; }
+            QPushButton:pressed { background: #2a6aad; }
+        """)
         calc_btn.clicked.connect(self._calculate)
-        input_layout.addWidget(calc_btn, 3, 0, 1, 2)
+        input_grid.addWidget(calc_btn, 3, 0, 1, 2)
 
-        input_card.viewLayout().addLayout(input_layout)
-        layout.addWidget(input_card)
+        layout.addWidget(input_group)
 
-        # ========== 月度五险一金明细 ==========
-        self.insurance_card = HeaderCardWidget(self)
-        self.insurance_card.setTitle("月度五险一金明细")
-        self.insurance_table = self._create_table(
+        # === 五险一金明细 ===
+        ins_group = QGroupBox("月度五险一金明细")
+        ins_group.setStyleSheet(GROUP_STYLE)
+        ins_layout = QVBoxLayout(ins_group)
+
+        self.insurance_table = QTableWidget()
+        self.insurance_table.setColumnCount(5)
+        self.insurance_table.setHorizontalHeaderLabels(
             ["项目", "个人比例", "个人金额", "单位比例", "单位金额"]
         )
-        self.insurance_card.viewLayout().addWidget(self.insurance_table)
-        layout.addWidget(self.insurance_card)
+        self.insurance_table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.Stretch
+        )
+        self.insurance_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.insurance_table.verticalHeader().setVisible(False)
+        self.insurance_table.setMaximumHeight(220)
+        ins_layout.addWidget(self.insurance_table)
 
-        # ========== 个税与年终奖 ==========
-        self.tax_card = HeaderCardWidget(self)
-        self.tax_card.setTitle("个税计算")
-        self.tax_layout = QVBoxLayout()
-        self.tax_layout.setSpacing(8)
-        self.tax_card.viewLayout().addLayout(self.tax_layout)
-        layout.addWidget(self.tax_card)
+        layout.addWidget(ins_group)
 
-        # ========== 年度汇总 ==========
-        self.summary_card = HeaderCardWidget(self)
-        self.summary_card.setTitle("年度汇总")
-        self.summary_layout = QGridLayout()
-        self.summary_layout.setSpacing(8)
-        self.summary_card.viewLayout().addLayout(self.summary_layout)
-        layout.addWidget(self.summary_card)
+        # === 个税计算 ===
+        tax_group = QGroupBox("个税计算")
+        tax_group.setStyleSheet(GROUP_STYLE)
+        self.tax_layout = QVBoxLayout(tax_group)
+        layout.addWidget(tax_group)
+
+        # === 年度汇总 ===
+        summary_group = QGroupBox("年度汇总")
+        summary_group.setStyleSheet(GROUP_STYLE)
+        self.summary_layout = QVBoxLayout(summary_group)
+        layout.addWidget(summary_group)
 
         layout.addStretch()
 
         # 默认计算一次
         self._calculate()
-
-    def _create_table(self, headers: list) -> TableWidget:
-        table = TableWidget()
-        table.setColumnCount(len(headers))
-        table.setHorizontalHeaderLabels(headers)
-        table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.Stretch
-        )
-        table.setEditTriggers(table.NoEditTriggers)
-        table.verticalHeader().setVisible(False)
-        table.setMaximumHeight(250)
-        return table
 
     def _calculate(self):
         salary = self.salary_input.value()
@@ -156,7 +191,6 @@ class PluginWidget(PluginBase):
             ("住房公积金", fund_pct / 100.0, fund_pct / 100.0),
         ]
 
-        # 计算五险一金明细
         personal_total = 0.0
         employer_total = 0.0
         rows = []
@@ -174,95 +208,66 @@ class PluginWidget(PluginBase):
                 f"{e_amount:.2f}",
             ))
 
-        # 合计行
-        rows.append((
-            "合计",
-            "-",
-            f"{personal_total:.2f}",
-            "-",
-            f"{employer_total:.2f}",
-        ))
+        rows.append(("合计", "-", f"{personal_total:.2f}", "-", f"{employer_total:.2f}"))
 
-        # 更新五险一金表格
+        # 更新表格
         self.insurance_table.setRowCount(len(rows))
         for r, row_data in enumerate(rows):
             for c, text in enumerate(row_data):
-                item = self.insurance_table.item(r, c)
-                if item is None:
-                    from PyQt5.QtWidgets import QTableWidgetItem
-                    item = QTableWidgetItem(text)
-                    item.setTextAlignment(Qt.AlignCenter)
-                    self.insurance_table.setItem(r, c, item)
-                else:
-                    item.setText(text)
+                item = QTableWidgetItem(text)
+                item.setTextAlignment(Qt.AlignCenter)
+                if r == len(rows) - 1:
+                    font = item.font()
+                    font.setBold(True)
+                    item.setFont(font)
+                self.insurance_table.setItem(r, c, item)
 
-        # 最后一行加粗
-        for c in range(5):
-            item = self.insurance_table.item(len(rows)-1, c)
-            if item:
-                font = item.font()
-                font.setBold(True)
-                item.setFont(font)
-
-        # ===== 月度工资个税 =====
+        # 月度工资个税
         monthly_taxable = salary - personal_total - 5000
-        monthly_tax = calc_tax(monthly_taxable * 12) / 12  # 年累计除以12
+        monthly_tax = calc_tax(monthly_taxable * 12) / 12
         monthly_after_tax = salary - personal_total - monthly_tax
 
-        # ===== 年终奖单独计税 =====
+        # 年终奖单独计税
         if bonus > 0:
             monthly_bonus = bonus / 12
-            bonus_tax = calc_tax(monthly_bonus * 12)  # 复用税率表
-            # 实际年终奖单独计税是: 找月均对应的税率档，然后 bonus * rate - deduction
+            bonus_tax = 0.0
             for upper, rate, deduction in TAX_BRACKETS:
                 if monthly_bonus <= upper:
                     bonus_tax = bonus * rate - deduction
                     break
         else:
             bonus_tax = 0.0
-
         bonus_after_tax = bonus - bonus_tax
 
         # 更新个税区域
-        # 清除旧内容
-        while self.tax_layout.count():
-            item = self.tax_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-
-        self.tax_layout.addWidget(self._kv_label(
+        self._clear_layout(self.tax_layout)
+        self.tax_layout.addWidget(self._make_kv(
             "月度应纳税所得额", f"{monthly_taxable:.2f} 元"
         ))
-        self.tax_layout.addWidget(self._kv_label(
+        self.tax_layout.addWidget(self._make_kv(
             "月度工资个税", f"{monthly_tax:.2f} 元"
         ))
-        self.tax_layout.addWidget(self._kv_label(
+        self.tax_layout.addWidget(self._make_kv(
             "月度税后工资", f"{monthly_after_tax:.2f} 元"
         ))
-        self.tax_layout.addWidget(self._h_separator())
-        self.tax_layout.addWidget(self._kv_label(
+        self.tax_layout.addWidget(self._make_kv(
             "年终奖", f"{bonus:.2f} 元"
         ))
-        self.tax_layout.addWidget(self._kv_label(
+        self.tax_layout.addWidget(self._make_kv(
             "年终奖个税（单独计税）", f"{bonus_tax:.2f} 元"
         ))
-        self.tax_layout.addWidget(self._kv_label(
+        self.tax_layout.addWidget(self._make_kv(
             "年终奖税后金额", f"{bonus_after_tax:.2f} 元"
         ))
 
-        # ===== 年度汇总 =====
+        # 年度汇总
         annual_gross = salary * 12 + bonus
         annual_personal = personal_total * 12
         annual_employer = employer_total * 12
         annual_tax = monthly_tax * 12 + bonus_tax
         annual_net = monthly_after_tax * 12 + bonus_after_tax
 
-        # 清除旧内容
-        while self.summary_layout.count():
-            item = self.summary_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-
+        self._clear_layout(self.summary_layout)
         summary_items = [
             ("年度税前总收入", f"{annual_gross:.2f} 元"),
             ("年度个人五险一金", f"{annual_personal:.2f} 元"),
@@ -273,30 +278,19 @@ class PluginWidget(PluginBase):
             ("年度到手收入", f"{annual_net:.2f} 元"),
             ("单位年度总成本", f"{salary * 12 + annual_employer:.2f} 元"),
         ]
+        for key, val in summary_items:
+            self.summary_layout.addWidget(self._make_kv(key, val))
 
-        for i, (label, value) in enumerate(summary_items):
-            lbl = BodyLabel(label)
-            val = StrongBodyLabel(value)
-            val.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self.summary_layout.addWidget(lbl, i, 0)
-            self.summary_layout.addWidget(val, i, 1)
-
-    def _kv_label(self, key: str, value: str) -> QWidget:
-        """创建一行 key-value 显示"""
-        w = QWidget()
-        h = QHBoxLayout(w)
-        h.setContentsMargins(0, 2, 0, 2)
-        h.addWidget(BodyLabel(key))
-        h.addStretch()
-        val = StrongBodyLabel(value)
-        val.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        h.addWidget(val)
-        return w
+    def _make_kv(self, key: str, value: str) -> QLabel:
+        """创建一行 key: value 文本"""
+        label = QLabel(f"{key}：{value}")
+        label.setStyleSheet("font-size: 13px; padding: 2px 0;")
+        return label
 
     @staticmethod
-    def _h_separator() -> QWidget:
-        """水平分隔线"""
-        line = QLabel()
-        line.setFixedHeight(1)
-        line.setStyleSheet("background-color: #e0e0e0; margin: 4px 0;")
-        return line
+    def _clear_layout(layout):
+        """清除 layout 中的所有子项"""
+        while layout.count():
+            item = layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()

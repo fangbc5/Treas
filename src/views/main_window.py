@@ -68,6 +68,10 @@ class ToolGridPage(QWidget):
             add_btn.clicked.connect(lambda: self._get_main_window()._add_category())
             header_layout.addWidget(add_btn)
 
+            import_btn = self._create_header_button("导入插件", FluentIcon.DOWNLOAD)
+            import_btn.clicked.connect(lambda: self._get_main_window()._import_plugin())
+            header_layout.addWidget(import_btn)
+
             manage_btn = self._create_header_button("管理分类", FluentIcon.SETTING)
             manage_btn.clicked.connect(
                 lambda: self._get_main_window()._manage_category_from_toolbar()
@@ -355,7 +359,8 @@ class MainWindow(FluentWindow):
 
     def _import_plugin(self):
         zip_path, _ = QFileDialog.getOpenFileName(
-            self, "选择插件包", "", "Zip 文件 (*.zip)"
+            self, "选择插件包", "", "Zip 文件 (*.zip)",
+            options=QFileDialog.DontUseNativeDialog,
         )
         if not zip_path:
             return

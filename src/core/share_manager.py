@@ -13,7 +13,7 @@ class ShareManager:
         self.pm = PluginManager()
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.export_dir = os.path.join(base_dir, "exported")
-        self.plugins_dir = os.path.join(base_dir, "src", "plugins")
+        self.plugins_dir = os.path.join(base_dir, "plugins")
         os.makedirs(self.export_dir, exist_ok=True)
 
     def export_plugin(self, plugin_id: str) -> str:
