@@ -2,11 +2,17 @@
 
 import os
 import json
+import shutil
 import importlib
 import importlib.util
 from typing import Dict, Optional
 
 from src.core.plugin_base import PluginBase
+from src.core.database import Database
+
+
+# 首次发布时内置的插件 ID 列表（随应用分发）
+BUILTIN_PLUGIN_IDS = {"calculator", "currency_converter", "simple_ledger"}
 
 
 class PluginManager:
@@ -17,10 +23,23 @@ class PluginManager:
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._instance._plugins = {}       # plugin_id -> plugin_class
+            cls._instance._plugins = {}       # plugin_id -> plugin info dict
             cls._instance._instances = {}      # plugin_id -> plugin_instance
             cls._instance._metas = {}          # plugin_id -> meta dict
+            cls._instance._db = None           # Database 单例引用
         return cls._instance
+
+    @property
+    def db(self):
+        """懒加载数据库实例"""
+        if self._db is None:
+            self._db = Database()
+        return self._db
+
+    @staticmethod
+    def is_builtin(plugin_id: str) -> bool:
+        """判断插件是否为内置插件"""
+        return plugin_id in BUILTIN_PLUGIN_IDS
 
     def discover_plugins(self):
         """扫描 plugins/ 目录，发现所有可用插件"""
@@ -121,14 +140,26 @@ class PluginManager:
             return self._instances[plugin_id]
         return self.load_plugin(plugin_id)
 
-    def list_plugins(self) -> list:
-        """列出所有已发现的插件元信息"""
+    def _get_hidden_plugin_ids(self) -> set:
+        """获取所有被隐藏的插件 ID 集合"""
+        rows = self.db.query("SELECT plugin_id FROM hidden_tools")
+        return {row["plugin_id"] for row in rows}
+
+    def list_plugins(self, include_hidden: bool = False) -> list:
+        """列出所有已发现的插件元信息（排除已隐藏的，内置工具置顶）"""
+        hidden_ids = self._get_hidden_plugin_ids() if not include_hidden else set()
         result = []
         for plugin_id, info in self._plugins.items():
+            # 跳过已隐藏的工具
+            if not include_hidden and plugin_id in hidden_ids:
+                continue
             meta = dict(info["meta"])
             meta["loaded"] = info["loaded"]
             meta["plugin_id"] = plugin_id
+            meta["is_builtin"] = self.is_builtin(plugin_id)
             result.append(meta)
+        # 内置工具置顶排序
+        result.sort(key=lambda p: (0 if p["is_builtin"] else 1, p.get("name", "")))
         return result
 
     def get_plugin_meta(self, plugin_id: str) -> Optional[dict]:
@@ -136,8 +167,56 @@ class PluginManager:
         return self._metas.get(plugin_id)
 
     def get_plugins_by_category(self, category_name: str = None) -> list:
-        """按分类筛选插件"""
+        """按分类筛选插件（排除已隐藏的，内置工具置顶）"""
         all_plugins = self.list_plugins()
         if category_name is None or category_name == "全部工具":
             return all_plugins
         return [p for p in all_plugins if p.get("category") == category_name]
+
+    def delete_plugin(self, plugin_id: str) -> bool:
+        """删除插件
+        - 内置插件：标记为隐藏（从列表中移除，文件保留）
+        - 自定义插件：彻底删除文件
+        返回 True 表示成功
+        """
+        if plugin_id not in self._plugins:
+            return False
+
+        # 先卸载实例
+        self.unload_plugin(plugin_id)
+
+        if self.is_builtin(plugin_id):
+            # 内置插件：仅标记隐藏
+            existing = self.db.query_one(
+                "SELECT id FROM hidden_tools WHERE plugin_id = ?", (plugin_id,)
+            )
+            if not existing:
+                self.db.execute(
+                    "INSERT INTO hidden_tools (plugin_id, is_builtin) VALUES (?, 1)",
+                    (plugin_id,),
+                )
+        else:
+            # 自定义插件：删除文件并从内存移除
+            plugin_dir = self._plugins[plugin_id]["dir"]
+            if os.path.isdir(plugin_dir):
+                shutil.rmtree(plugin_dir)
+            if plugin_id in self._plugins:
+                del self._plugins[plugin_id]
+            if plugin_id in self._metas:
+                del self._metas[plugin_id]
+
+        return True
+
+    def reset_builtin_plugins(self) -> int:
+        """重置所有内置插件（取消隐藏）
+        返回恢复的插件数量
+        """
+        hidden_builtins = self.db.query(
+            "SELECT plugin_id FROM hidden_tools WHERE is_builtin = 1"
+        )
+        count = len(hidden_builtins)
+        if count > 0:
+            self.db.execute("DELETE FROM hidden_tools WHERE is_builtin = 1")
+        # 重新发现插件（确保内置插件都被加载）
+        self.discover_plugins()
+        return count

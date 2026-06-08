@@ -17,11 +17,13 @@ class ToolCard(CardWidget):
 
     clicked = pyqtSignal(str)
     export_requested = pyqtSignal(str)
+    delete_requested = pyqtSignal(str)
 
     def __init__(self, plugin_meta: dict, parent=None):
         super().__init__(parent)
         self.plugin_meta = plugin_meta
         self.plugin_id = plugin_meta.get("id", "")
+        self.is_builtin = plugin_meta.get("is_builtin", False)
         self._init_ui()
 
     def _init_ui(self):
@@ -66,7 +68,7 @@ class ToolCard(CardWidget):
         # 底部按钮
         btn_layout = QHBoxLayout()
 
-        open_btn = PrimaryPushButton(" 打开")
+        open_btn = PrimaryPushButton("打开")
         open_btn.setIcon(FluentIcon.PLAY.icon())
         open_btn.clicked.connect(lambda: self.clicked.emit(self.plugin_id))
         btn_layout.addWidget(open_btn)
@@ -75,6 +77,11 @@ class ToolCard(CardWidget):
         share_btn.setToolTip("分享插件")
         share_btn.clicked.connect(lambda: self.export_requested.emit(self.plugin_id))
         btn_layout.addWidget(share_btn)
+
+        delete_btn = ToolButton(FluentIcon.DELETE)
+        delete_btn.setToolTip("删除插件")
+        delete_btn.clicked.connect(lambda: self.delete_requested.emit(self.plugin_id))
+        btn_layout.addWidget(delete_btn)
 
         btn_layout.addStretch()
         layout.addLayout(btn_layout)

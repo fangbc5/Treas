@@ -83,6 +83,16 @@ class Database:
                 )
             """)
 
+            # 隐藏工具表 - 记录被删除/隐藏的工具
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS hidden_tools (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    plugin_id TEXT NOT NULL UNIQUE,
+                    is_builtin BOOLEAN DEFAULT 0,
+                    hidden_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
             conn.commit()
         finally:
             conn.close()

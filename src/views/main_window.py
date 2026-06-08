@@ -2,7 +2,7 @@
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QLabel, QScrollArea, QFileDialog, QMessageBox,
+    QLabel, QScrollArea, QFileDialog,
     QInputDialog, QSizePolicy,
 )
 from PyQt5.QtCore import Qt, pyqtSignal
@@ -14,7 +14,7 @@ from qfluentwidgets import (
     SubtitleLabel, CaptionLabel, PushButton, PrimaryPushButton,
     TransparentToolButton, ToolButton, InfoBar, InfoBarPosition,
     CardWidget, HeaderCardWidget, StrongBodyLabel,
-    RoundMenu, Action, Dialog,
+    RoundMenu, Action, Dialog, MessageBox,
     setFont,
 )
 
@@ -29,85 +29,116 @@ from src.views.category_dialog import CategoryDialog
 
 
 class ToolGridPage(QWidget):
-    """工具网格页面 - 展示一组工具卡片"""
+    """工具网格页面 - 展示一组工具卡片
+
+    设计原则：结构固定，内容可变
+    - _init_ui() 中一次性创建所有固定结构（header、scroll、grid、empty_label）
+    - update_plugins() 只更新网格内的卡片内容，不创建/销毁容器
+    """
 
     def __init__(self, parent=None, show_actions: bool = False):
         super().__init__(parent)
         self.tool_cards = []
         self.show_actions = show_actions
         self._plugins = []
-        self._layout = None
-        self._header_layout = None
-        self._grid_container = None
-        self._grid = None
-        self._scroll = None
         self._title_label = None
+        self._scroll = None
+        self._grid = None
+        self._grid_container = None
+        self._empty_label = None
         self._init_ui()
 
     def _init_ui(self):
-        self._layout = QVBoxLayout(self)
-        self._layout.setContentsMargins(36, 20, 36, 20)
-        self._layout.setSpacing(12)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(36, 20, 36, 20)
+        layout.setSpacing(12)
 
         # 顶部操作栏
-        self._header_layout = QHBoxLayout()
+        header_layout = QHBoxLayout()
         self._title_label = SubtitleLabel("全部工具")
-        self._header_layout.addWidget(self._title_label)
-        self._header_layout.addStretch()
+        header_layout.addWidget(self._title_label)
+        header_layout.addStretch()
 
         if self.show_actions:
-            add_btn = PrimaryPushButton(" 新建分类")
-            add_btn.setIcon(FluentIcon.ADD.icon())
-            add_btn.clicked.connect(lambda: self._get_main_window()._add_category())
-            self._header_layout.addWidget(add_btn)
+            reset_btn = self._create_header_button("重置内置工具", FluentIcon.SYNC)
+            reset_btn.clicked.connect(lambda: self._get_main_window()._reset_builtin_plugins())
+            header_layout.addWidget(reset_btn)
 
-            manage_btn = PushButton(" 管理分类")
-            manage_btn.setIcon(FluentIcon.SETTING.icon())
+            add_btn = self._create_header_button("新建分类", FluentIcon.ADD, primary=True)
+            add_btn.clicked.connect(lambda: self._get_main_window()._add_category())
+            header_layout.addWidget(add_btn)
+
+            manage_btn = self._create_header_button("管理分类", FluentIcon.SETTING)
             manage_btn.clicked.connect(
                 lambda: self._get_main_window()._manage_category_from_toolbar()
             )
-            self._header_layout.addWidget(manage_btn)
+            header_layout.addWidget(manage_btn)
 
-        self._layout.addLayout(self._header_layout)
+        layout.addLayout(header_layout)
 
-        # 占位空提示
+        # 占位空提示（固定结构，与 scroll 互斥显示）
         self._empty_label = QLabel("暂无工具")
         self._empty_label.setAlignment(Qt.AlignCenter)
         self._empty_label.setStyleSheet("color: gray; font-size: 16px; padding: 60px;")
-        self._layout.addWidget(self._empty_label)
+        layout.addWidget(self._empty_label)
 
-    def _get_main_window(self):
-        p = self.parent()
-        return p
-
-    def update_plugins(self, plugins: list):
-        """刷新页面内容"""
-        # 清理旧的卡片和网格
-        if self._grid_container is not None:
-            self._scroll.setWidget(None)
-            self._grid_container.deleteLater()
-            self._grid_container = None
-            self._scroll = None
-
-        self.tool_cards.clear()
-        self._plugins = plugins
-
-        # 更新标题
-        count = len(plugins)
-        self._title_label.setText(f"全部工具 ({count})" if self.show_actions else f"工具 ({count})")
-
-        if not plugins:
-            self._empty_label.show()
-            return
-
-        self._empty_label.hide()
-
-        # 创建新的网格
+        # 滚动区域 + 网格容器（固定结构，初始化一次）
         self._grid_container = QWidget()
         self._grid = QGridLayout(self._grid_container)
         self._grid.setSpacing(16)
         self._grid.setAlignment(Qt.AlignTop | Qt.AlignLeft)
 
+        self._scroll = QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setFrameShape(QScrollArea.NoFrame)
+        self._scroll.setWidget(self._grid_container)
+        layout.addWidget(self._scroll)
+
+        # 初始状态：无工具，显示空提示，隐藏滚动区
+        self._empty_label.show()
+        self._scroll.hide()
+
+    @staticmethod
+    def _create_header_button(text: str, fluent_icon, primary: bool = False):
+        """创建工具栏按钮"""
+        btn = PrimaryPushButton(text) if primary else PushButton(text)
+        btn.setIcon(fluent_icon.icon())
+        return btn
+
+    def _get_main_window(self):
+        """向上遍历父级链找到 MainWindow"""
+        p = self.parent()
+        while p is not None:
+            if isinstance(p, MainWindow):
+                return p
+            p = p.parent()
+        return None
+
+    def update_plugins(self, plugins: list):
+        """刷新页面内容（只更新网格内的卡片，不重建容器）"""
+        # 1. 清理旧卡片
+        for card in self.tool_cards:
+            self._grid.removeWidget(card)
+            card.deleteLater()
+        self.tool_cards.clear()
+        self._plugins = plugins
+
+        # 2. 更新标题
+        count = len(plugins)
+        self._title_label.setText(
+            f"全部工具 ({count})" if self.show_actions else f"工具 ({count})"
+        )
+
+        # 3. 切换空提示/滚动区的显示
+        if not plugins:
+            self._empty_label.show()
+            self._scroll.hide()
+            return
+
+        self._empty_label.hide()
+        self._scroll.show()
+
+        # 4. 创建新卡片并加入网格
         cols = 3
         for i, plugin in enumerate(plugins):
             card = ToolCard(plugin)
@@ -115,12 +146,6 @@ class ToolGridPage(QWidget):
             col = i % cols
             self._grid.addWidget(card, row, col)
             self.tool_cards.append(card)
-
-        self._scroll = QScrollArea()
-        self._scroll.setWidgetResizable(True)
-        self._scroll.setFrameShape(QScrollArea.NoFrame)
-        self._scroll.setWidget(self._grid_container)
-        self._layout.addWidget(self._scroll)
 
 
 class MainWindow(FluentWindow):
@@ -188,8 +213,13 @@ class MainWindow(FluentWindow):
                 card.export_requested.disconnect()
             except Exception:
                 pass
+            try:
+                card.delete_requested.disconnect()
+            except Exception:
+                pass
             card.clicked.connect(self._open_plugin)
             card.export_requested.connect(self._export_single_plugin)
+            card.delete_requested.connect(self._delete_plugin)
 
     def _refresh_all_page(self):
         """刷新全部工具页"""
@@ -273,12 +303,12 @@ class MainWindow(FluentWindow):
             data = dialog.get_data()
             action = data.get("action")
             if action == "delete":
-                reply = QMessageBox.question(
-                    self, "确认删除",
+                msg = MessageBox(
+                    "确认删除",
                     f"确定要删除分类「{cat['name']}」吗？",
-                    QMessageBox.Yes | QMessageBox.No,
+                    self,
                 )
-                if reply == QMessageBox.Yes:
+                if msg.exec():
                     self.cm.delete(cat["id"])
                     # 标记页面待删除（实际无法从导航移除，只清空内容）
                     if cat["name"] in self._category_pages:
@@ -366,3 +396,62 @@ class MainWindow(FluentWindow):
             )
         except Exception as e:
             InfoBar.error("导出失败", str(e), parent=self, duration=5000)
+
+    def _delete_plugin(self, plugin_id: str):
+        """删除插件"""
+        meta = self.pm.get_plugin_meta(plugin_id)
+        if not meta:
+            return
+
+        plugin_name = meta.get("name", plugin_id)
+        is_builtin = self.pm.is_builtin(plugin_id)
+
+        # 根据是否内置插件显示不同提示
+        if is_builtin:
+            hint = f"确定要删除内置工具「{plugin_name}」吗？\n\n内置工具删除后可通过「重置内置工具」按钮恢复。"
+        else:
+            hint = f"确定要删除工具「{plugin_name}」吗？\n\n此操作将彻底删除该工具，无法恢复！"
+
+        msg = MessageBox("确认删除", hint, self)
+        if not msg.exec():
+            return
+
+        try:
+            self.pm.delete_plugin(plugin_id)
+            self.refresh_all()
+            InfoBar.success(
+                "已删除",
+                f"工具「{plugin_name}」已删除",
+                parent=self,
+                duration=3000,
+                position=InfoBarPosition.TOP,
+            )
+        except Exception as e:
+            InfoBar.error(
+                "删除失败",
+                str(e),
+                parent=self,
+                duration=3000,
+                position=InfoBarPosition.TOP,
+            )
+
+    def _reset_builtin_plugins(self):
+        """重置所有内置工具（恢复被删除的内置工具）"""
+        count = self.pm.reset_builtin_plugins()
+        if count > 0:
+            self.refresh_all()
+            InfoBar.success(
+                "重置成功",
+                f"已恢复 {count} 个内置工具",
+                parent=self,
+                duration=3000,
+                position=InfoBarPosition.TOP,
+            )
+        else:
+            InfoBar.info(
+                "提示",
+                "所有内置工具均未隐藏，无需重置",
+                parent=self,
+                duration=2000,
+                position=InfoBarPosition.TOP,
+            )
