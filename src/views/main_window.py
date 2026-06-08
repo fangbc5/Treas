@@ -176,6 +176,10 @@ class MainWindow(FluentWindow):
         # 缩小导航栏展开宽度 (默认约 300，太宽)
         self.navigationInterface.setExpandWidth(200)
 
+        # 延迟安装导航项的右键菜单（需要在导航面板完全构建后）
+        from PyQt5.QtCore import QTimer
+        QTimer.singleShot(100, self._install_nav_context_menus)
+
     def _init_navigation(self):
         """初始化导航栏"""
         # 「全部工具」页
@@ -460,3 +464,123 @@ class MainWindow(FluentWindow):
                 duration=2000,
                 position=InfoBarPosition.TOP,
             )
+
+    # ========== 导航栏右键排序 ==========
+
+    def eventFilter(self, obj, event):
+        """事件过滤器 - 捕获导航项右键点击"""
+        from PyQt5.QtCore import QEvent
+        if hasattr(self, '_nav_cat_map') and obj in self._nav_cat_map:
+            if event.type() == QEvent.ContextMenu:
+                cat_name = self._nav_cat_map[obj]
+                global_pos = event.globalPos()
+                self._show_nav_context_menu(cat_name, global_pos)
+                return True
+        return super().eventFilter(obj, event)
+
+    def _show_nav_context_menu(self, cat_name, global_pos):
+        """显示导航项右键菜单"""
+        categories = self.cm.get_all()
+        cat = next((c for c in categories if c["name"] == cat_name), None)
+        if not cat:
+            return
+
+        clicked_idx = next(
+            (i for i, c in enumerate(categories) if c["id"] == cat["id"]),
+            None,
+        )
+        if clicked_idx is None:
+            return
+
+        menu = RoundMenu(parent=self)
+
+        if clicked_idx > 0:
+            up_action = Action(FluentIcon.UP.icon(), "上移")
+            up_action.triggered.connect(lambda: self._move_category(cat, "up"))
+            menu.addAction(up_action)
+
+        if clicked_idx < len(categories) - 1:
+            down_action = Action(FluentIcon.DOWN.icon(), "下移")
+            down_action.triggered.connect(lambda: self._move_category(cat, "down"))
+            menu.addAction(down_action)
+
+        if menu.actions():
+            menu.exec_(global_pos)
+
+    def _install_nav_context_menus(self):
+        """为每个分类导航项安装事件过滤器（右键菜单）"""
+        panel = self.navigationInterface.panel
+        self._nav_cat_map = {}  # nav_widget -> cat_name
+        for cat_name, page in self._category_pages.items():
+            obj_name = page.objectName()
+            if obj_name in panel.items:
+                nav_widget = panel.items[obj_name].widget
+                self._nav_cat_map[nav_widget] = cat_name
+                nav_widget.installEventFilter(self)
+
+    def _move_category(self, cat: dict, direction: str):
+        """移动分类顺序（up / down）"""
+        categories = self.cm.get_all()
+        cat_ids = [c["id"] for c in categories]
+
+        idx = next(
+            (i for i, c in enumerate(categories) if c["id"] == cat["id"]),
+            None,
+        )
+        if idx is None:
+            return
+
+        if direction == "up" and idx > 0:
+            cat_ids[idx], cat_ids[idx - 1] = cat_ids[idx - 1], cat_ids[idx]
+        elif direction == "down" and idx < len(cat_ids) - 1:
+            cat_ids[idx], cat_ids[idx + 1] = cat_ids[idx + 1], cat_ids[idx]
+        else:
+            return
+
+        # 更新数据库排序
+        self.cm.update_order(cat_ids)
+
+        # 即时重建导航顺序
+        self._rebuild_navigation()
+
+        InfoBar.success(
+            "排序已更新",
+            f"分类「{cat['name']}」已{'上移' if direction == 'up' else '下移'}",
+            parent=self,
+            duration=2000,
+            position=InfoBarPosition.TOP,
+        )
+
+    def _rebuild_navigation(self):
+        """重建导航栏分类顺序（即时生效）"""
+        # 1. 从导航中移除所有分类页面（不删除页面对象）
+        old_pages = {}
+        for name in list(self._category_pages.keys()):
+            page = self._category_pages[name]
+            old_pages[name] = page
+            # 从导航中移除（只移除导航项，不操作 stackedWidget）
+            self.navigationInterface.removeWidget(page.objectName())
+        self._category_pages.clear()
+
+        # 2. 按新顺序重新追加到导航末尾
+        categories = self.cm.get_all()
+        for cat in categories:
+            name = cat["name"]
+            page = old_pages[name]
+            routeKey = page.objectName()
+            icon = fluent_icon_from_name(cat.get("icon", "APPLICATION"))
+
+            # addItem 会追加到导航列表末尾
+            self.navigationInterface.addItem(
+                routeKey=routeKey,
+                icon=icon,
+                text=name,
+                onClick=lambda checked=False, p=page: self.switchTo(p),
+                selectable=True,
+                tooltip=name,
+            )
+
+            self._category_pages[name] = page
+
+        # 3. 重新安装右键菜单
+        self._install_nav_context_menus()
