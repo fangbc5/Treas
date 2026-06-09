@@ -295,6 +295,7 @@ class MainWindow(FluentWindow):
             card.export_requested.connect(self._export_single_plugin)
             card.delete_requested.connect(self._delete_plugin)
             card.change_category_requested.connect(self._change_plugin_category)
+            card.install_deps_requested.connect(self._install_plugin_dependencies)
 
     def _refresh_all_page(self):
         """刷新全部工具页"""
@@ -610,6 +611,87 @@ class MainWindow(FluentWindow):
                 "所有内置工具均未隐藏，无需重置",
                 parent=self,
                 duration=2000,
+                position=InfoBarPosition.TOP,
+            )
+
+    def _install_plugin_dependencies(self, plugin_id: str):
+        """安装插件的缺失依赖"""
+        from src.core.dependency_manager import DependencyManager
+        from PyQt5.QtCore import QThread
+
+        dm = DependencyManager()
+        missing = dm.get_missing_dependencies(plugin_id)
+
+        if not missing:
+            InfoBar.info("提示", "无缺失依赖", parent=self, duration=2000)
+            return
+
+        # 构建安装列表
+        packages = []
+        details = []
+        for pkg_name, version_spec in missing:
+            if version_spec:
+                packages.append(f"{pkg_name}{version_spec}")
+                details.append(f"{pkg_name} {version_spec}")
+            else:
+                packages.append(pkg_name)
+                details.append(pkg_name)
+
+        # 确认安装
+        msg = MessageBox(
+            "安装依赖",
+            f"工具「{plugin_id}」需要安装以下依赖:\n\n"
+            + "\n".join(f"  • {d}" for d in details)
+            + "\n\n确认安装？",
+            self,
+        )
+        if not msg.exec():
+            return
+
+        # 在后台线程中安装
+        class InstallThread(QThread):
+            success = False
+            message = ""
+
+            def __init__(self, pkgs, dep_mgr):
+                super().__init__()
+                self.pkgs = pkgs
+                self.dep_mgr = dep_mgr
+
+            def run(self):
+                self.success, self.message = self.dep_mgr.install_dependencies(self.pkgs)
+
+        self._install_thread = InstallThread(packages, dm)
+        self._install_thread.finished.connect(
+            lambda: self._on_deps_installed(plugin_id, self._install_thread)
+        )
+        self._install_thread.start()
+
+        InfoBar.info(
+            "安装中",
+            f"正在安装依赖: {', '.join(details)}",
+            parent=self,
+            duration=3000,
+            position=InfoBarPosition.TOP,
+        )
+
+    def _on_deps_installed(self, plugin_id: str, thread):
+        """依赖安装完成回调"""
+        if thread.success:
+            self.refresh_all()
+            InfoBar.success(
+                "安装成功",
+                f"工具「{plugin_id}」的依赖已安装完成",
+                parent=self,
+                duration=3000,
+                position=InfoBarPosition.TOP,
+            )
+        else:
+            InfoBar.error(
+                "安装失败",
+                thread.message,
+                parent=self,
+                duration=5000,
                 position=InfoBarPosition.TOP,
             )
 

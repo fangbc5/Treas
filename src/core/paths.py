@@ -48,6 +48,13 @@ def get_plugins_dir() -> str:
     return path
 
 
+def get_plugins_site_packages_dir() -> str:
+    """获取插件共享第三方依赖目录"""
+    path = os.path.join(get_app_root(), "plugins", ".site-packages")
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
 def get_db_path() -> str:
     """获取数据库文件路径"""
     return os.path.join(get_data_dir(), "treas.db")

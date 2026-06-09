@@ -8,6 +8,7 @@ from typing import Dict, Optional
 
 from src.core.plugin_base import PluginBase
 from src.core.database import Database
+from src.core.dependency_manager import DependencyManager
 
 
 # 首次发布时内置的插件 ID 列表（随应用分发）
@@ -26,6 +27,7 @@ class PluginManager:
             cls._instance._instances = {}      # plugin_id -> plugin_instance
             cls._instance._metas = {}          # plugin_id -> meta dict
             cls._instance._db = None           # Database 单例引用
+            cls._instance._dm = None           # DependencyManager 单例引用
         return cls._instance
 
     @property
@@ -34,6 +36,13 @@ class PluginManager:
         if self._db is None:
             self._db = Database()
         return self._db
+
+    @property
+    def dm(self) -> DependencyManager:
+        """懒加载依赖管理器实例"""
+        if self._dm is None:
+            self._dm = DependencyManager()
+        return self._dm
 
     @staticmethod
     def is_builtin(plugin_id: str) -> bool:
@@ -84,6 +93,10 @@ class PluginManager:
                 }
                 # 自动注册到数据库（使用 plugin.json 的默认分类）
                 self.ensure_registered(plugin_id)
+                # 保存依赖声明到数据库（来自 plugin.json 的 dependencies 字段）
+                dependencies = meta.get("dependencies", [])
+                if dependencies:
+                    self.dm.save_dependencies(plugin_id, dependencies)
             except Exception as e:
                 print(f"[PluginManager] 加载插件清单失败 {item}: {e}")
 
@@ -109,6 +122,8 @@ class PluginManager:
             return None
 
         try:
+            # 确保插件共享依赖目录在 sys.path 中
+            self.dm.ensure_site_packages_in_path()
             # 动态导入插件模块
             module_name = f"src.plugins.{plugin_id}.{os.path.splitext(entry_file)[0]}"
             spec = importlib.util.spec_from_file_location(module_name, entry_path)
@@ -170,6 +185,8 @@ class PluginManager:
             meta["is_builtin"] = self.is_builtin(plugin_id)
             # 从数据库获取实际分类
             meta["_db_category"] = self.get_plugin_category_name(plugin_id)
+            # 依赖状态摘要
+            meta["_dep_summary"] = self.dm.get_dependency_summary(plugin_id)
             result.append(meta)
         # 内置工具置顶排序（按固定顺序，再按名称）
         _builtin_order = {pid: i for i, pid in enumerate(BUILTIN_PLUGIN_IDS)}

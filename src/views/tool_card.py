@@ -66,12 +66,14 @@ class ToolCard(CardWidget):
     export_requested = pyqtSignal(str)
     delete_requested = pyqtSignal(str)
     change_category_requested = pyqtSignal(str)
+    install_deps_requested = pyqtSignal(str)
 
     def __init__(self, plugin_meta: dict, parent=None):
         super().__init__(parent)
         self.plugin_meta = plugin_meta
         self.plugin_id = plugin_meta.get("id", "")
         self.is_builtin = plugin_meta.get("is_builtin", False)
+        self._dep_summary = plugin_meta.get("_dep_summary", {})
         self._init_ui()
 
     def _init_ui(self):
@@ -111,13 +113,42 @@ class ToolCard(CardWidget):
             ver_label = CaptionLabel(f"v{version}")
             layout.addWidget(ver_label)
 
+        # 依赖状态提示
+        dep_status = self._dep_summary.get("status", "no_deps")
+        if dep_status == "missing":
+            missing = self._dep_summary.get("missing", [])
+            pkg_names = ", ".join(p[0] for p in missing)
+            dep_label = CaptionLabel(f"⚠️ 缺少依赖: {pkg_names}")
+            dep_label.setStyleSheet("color: #e67e22; font-size: 11px;")
+            dep_label.setWordWrap(True)
+            layout.addWidget(dep_label)
+
+            # 安装依赖按钮
+            install_btn = PushButton("安装依赖")
+            install_btn.setFixedHeight(26)
+            install_btn.setStyleSheet("font-size: 11px;")
+            install_btn.clicked.connect(
+                lambda: self.install_deps_requested.emit(self.plugin_id)
+            )
+            layout.addWidget(install_btn)
+
+        elif dep_status == "conflict":
+            conflicts = self._dep_summary.get("conflicts", [])
+            pkg_names = ", ".join(c["package"] for c in conflicts)
+            dep_label = CaptionLabel(f"🔴 依赖冲突: {pkg_names}")
+            dep_label.setStyleSheet("color: #e74c3c; font-size: 11px;")
+            dep_label.setWordWrap(True)
+            layout.addWidget(dep_label)
+
         layout.addStretch()
 
         # 底部按钮
         btn_layout = QHBoxLayout()
 
+        # 依赖缺失时禁用打开按钮
         open_btn = ToolButton(FluentIcon.PLAY)
         open_btn.setToolTip("打开")
+        open_btn.setEnabled(dep_status != "missing")
         open_btn.clicked.connect(lambda: self.open_requested.emit(self.plugin_id))
         btn_layout.addWidget(open_btn)
 

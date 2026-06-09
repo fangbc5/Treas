@@ -16,7 +16,7 @@ class ShareManager:
         self.plugins_dir = get_plugins_dir()
 
     def export_plugin(self, plugin_id: str) -> str:
-        """将插件打包为 zip 文件，返回 zip 路径"""
+        """将插件打包为 zip 文件（含 requirements.txt），返回 zip 路径"""
         meta = self.pm.get_plugin_meta(plugin_id)
         if not meta:
             raise ValueError(f"插件 {plugin_id} 不存在")
@@ -34,6 +34,13 @@ class ShareManager:
                     file_path = os.path.join(root, file)
                     arcname = os.path.relpath(file_path, plugin_dir)
                     zf.write(file_path, arcname)
+
+            # 自动生成 requirements.txt（从 plugin.json 的 dependencies）
+            dependencies = meta.get("dependencies", [])
+            if dependencies:
+                import io
+                req_content = "\n".join(dependencies) + "\n"
+                zf.writestr("requirements.txt", req_content)
 
         return zip_path
 

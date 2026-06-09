@@ -74,6 +74,27 @@ class Database:
                 )
             """)
 
+            # 插件依赖声明表（来自 plugin.json 的 dependencies）
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS plugin_dependencies (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    plugin_id TEXT NOT NULL,
+                    package_name TEXT NOT NULL,
+                    version_spec TEXT DEFAULT '',
+                    UNIQUE(plugin_id, package_name)
+                )
+            """)
+
+            # 已安装的第三方包缓存（避免重复扫描 .site-packages/）
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS installed_packages (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    package_name TEXT NOT NULL UNIQUE,
+                    version TEXT DEFAULT '',
+                    installed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
             conn.commit()
         finally:
             conn.close()
