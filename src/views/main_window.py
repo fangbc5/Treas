@@ -1,11 +1,13 @@
 """主窗口 - 基于 QFluentWidgets FluentWindow"""
 
+import sys
+
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QScrollArea, QFileDialog,
     QInputDialog,
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtWidgets import QDialog
 
 from qfluentwidgets import (
@@ -192,6 +194,50 @@ class MainWindow(FluentWindow):
         self.setMinimumSize(900, 600)
         self.resize(1100, 700)
         self.setWindowIcon(FluentIcon.APPLICATION.icon())
+
+        # macOS：标题栏适配（DBeaver 风格 - 交通灯+标题独占一行，全宽）
+        if sys.platform == 'darwin':
+            # 隐藏窗口图标
+            self.titleBar.iconLabel.hide()
+            # 隐藏导航栏返回按钮
+            self.navigationInterface.setReturnButtonVisible(False)
+            # 标题栏高度：macOS 标准约 28px
+            TITLE_BAR_H = 28
+            self.titleBar.setFixedHeight(TITLE_BAR_H)
+            # 显示标题文字（FluentWidgetTitleBar 在 macOS 上默认隐藏了）
+            self.titleBar.titleLabel.show()
+            self.titleBar.titleLabel.setStyleSheet(
+                "font-size: 13px; font-weight: 500; color: #333;"
+            )
+            # 标题居中：清空布局中多余的隐藏元素，重建干净布局
+            tb = self.titleBar
+            # 移除所有子项（iconLabel, titleLabel, buttonLayout 等）
+            while tb.hBoxLayout.count():
+                item = tb.hBoxLayout.takeAt(0)
+                if item.widget():
+                    item.widget().setParent(None)
+                elif item.layout():
+                    # 子布局中的 widget 也解绑
+                    while item.layout().count():
+                        sub = item.layout().takeAt(0)
+                        if sub.widget():
+                            sub.widget().setParent(None)
+
+            # 重建：[spacing 78px] [stretch] [titleLabel] [stretch] [spacing 78px]
+            # 左右各 78px 对称，标题视觉居中不受交通灯影响
+            tb.hBoxLayout.addSpacing(78)
+            tb.hBoxLayout.addStretch(1)
+            tb.hBoxLayout.addWidget(tb.titleLabel, 0, Qt.AlignVCenter)
+            tb.hBoxLayout.addStretch(1)
+            tb.hBoxLayout.addSpacing(78)
+
+            # 导航面板内容下移，避免与标题栏重叠
+            self.navigationInterface.panel.layout().setContentsMargins(0, 28, 0, 0)
+            # 主内容区顶部边距也设为 28px，与导航区对齐
+            self.widgetLayout.setContentsMargins(0, 28, 0, 0)
+            # 标题栏横跨全宽（覆盖 resizeEvent 的行为）
+            self.titleBar.move(0, 0)
+            self.titleBar.resize(self.width(), self.titleBar.height())
 
         # 缩小导航栏展开宽度 (默认约 300，太宽)
         self.navigationInterface.setExpandWidth(200)
@@ -566,6 +612,19 @@ class MainWindow(FluentWindow):
                 duration=2000,
                 position=InfoBarPosition.TOP,
             )
+
+    def resizeEvent(self, e):
+        """重写：macOS 上标题栏横跨全宽"""
+        if sys.platform == 'darwin':
+            self.titleBar.move(0, 0)
+            self.titleBar.resize(self.width(), self.titleBar.height())
+        else:
+            super().resizeEvent(e)
+
+    def systemTitleBarRect(self, size: QSize):
+        """macOS 系统交通灯按钮位置 - 左上角"""
+        from PyQt5.QtCore import QRect
+        return QRect(0, 0 if self.isFullScreen() else 2, 75, size.height())
 
     # ========== 导航栏右键排序 ==========
 
