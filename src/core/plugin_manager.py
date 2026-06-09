@@ -197,27 +197,21 @@ class PluginManager:
         """确保插件在 plugin_registry 中注册
         
         首次注册时：使用 category_name 或 plugin.json 中的默认 category
-        已注册但 category_id 为空时：尝试用 plugin.json 的默认分类补充
+        已注册时：不做任何修改（尊重用户的分类操作）
         """
         existing = self.db.query_one(
-            "SELECT id, category_id FROM plugin_registry WHERE plugin_id = ?",
+            "SELECT id FROM plugin_registry WHERE plugin_id = ?",
             (plugin_id,),
         )
 
-        # 确定分类
+        if existing:
+            return
+
+        # 确定分类（仅首次注册时使用）
         if category_name is None:
             meta = self._metas.get(plugin_id, {})
             category_name = meta.get("category", None)
         category_id = self._resolve_category_id(category_name)
-
-        if existing:
-            # 已注册但 category_id 为空，尝试补充
-            if existing["category_id"] is None and category_id is not None:
-                self.db.execute(
-                    "UPDATE plugin_registry SET category_id = ? WHERE plugin_id = ?",
-                    (category_id, plugin_id),
-                )
-            return
 
         self.db.execute(
             "INSERT INTO plugin_registry (plugin_id, category_id) VALUES (?, ?)",

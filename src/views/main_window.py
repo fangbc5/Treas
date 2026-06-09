@@ -24,8 +24,9 @@ from src.core.share_manager import ShareManager
 from src.utils.icons import (
     CATEGORY_ICONS, UI_ICONS, get_fluent_icon, fluent_icon_from_name,
 )
-from src.views.tool_card import ToolCard
+from src.views.tool_card import ToolCard, AddToolCard
 from src.views.category_dialog import CategoryDialog
+from src.views.add_tool_dialog import AddToolDialog
 
 
 class ToolGridPage(QWidget):
@@ -42,11 +43,13 @@ class ToolGridPage(QWidget):
         self.show_actions = show_actions
         self._plugins = []
         self._page_title = title
+        self._is_all_page = (title == "全部工具")
         self._title_label = None
         self._scroll = None
         self._grid = None
         self._grid_container = None
         self._empty_label = None
+        self._add_card = None
         self._init_ui()
 
     def _init_ui(self):
@@ -56,7 +59,7 @@ class ToolGridPage(QWidget):
 
         # 顶部操作栏
         header_layout = QHBoxLayout()
-        self._title_label = SubtitleLabel("全部工具")
+        self._title_label = SubtitleLabel(self._page_title)
         header_layout.addWidget(self._title_label)
         header_layout.addStretch()
 
@@ -93,9 +96,16 @@ class ToolGridPage(QWidget):
         self._scroll.setWidget(self._grid_container)
         layout.addWidget(self._scroll)
 
-        # 初始状态：无工具，显示空提示，隐藏滚动区
-        self._empty_label.show()
-        self._scroll.hide()
+        # 初始状态
+        if self._is_all_page:
+            # 全部工具页：无工具时显示空提示
+            self._empty_label.show()
+            self._scroll.hide()
+        else:
+            # 分类页：始终显示滚动区（至少有添加卡片）
+            self._empty_label.hide()
+            self._scroll.show()
+            self._add_add_tool_card()
 
     @staticmethod
     def _create_header_button(text: str, fluent_icon, primary: bool = False):
@@ -113,6 +123,31 @@ class ToolGridPage(QWidget):
             p = p.parent()
         return None
 
+    def _add_add_tool_card(self):
+        """添加「添加工具」卡片到网格末尾"""
+        if self._add_card is not None:
+            self._grid.removeWidget(self._add_card)
+            self._add_card.deleteLater()
+        self._add_card = AddToolCard()
+        self._add_card.add_requested.connect(self._on_add_tool_clicked)
+        self._place_add_card()
+
+    def _place_add_card(self):
+        """将添加卡片放到网格末尾"""
+        if self._add_card is None:
+            return
+        cols = 3
+        idx = len(self._plugins)
+        row = idx // cols
+        col = idx % cols
+        self._grid.addWidget(self._add_card, row, col)
+
+    def _on_add_tool_clicked(self):
+        """添加工具卡片被点击"""
+        mw = self._get_main_window()
+        if mw:
+            mw._add_tool_to_category(self._page_title)
+
     def update_plugins(self, plugins: list):
         """刷新页面内容（只更新网格内的卡片，不重建容器）"""
         # 1. 清理旧卡片
@@ -126,14 +161,14 @@ class ToolGridPage(QWidget):
         count = len(plugins)
         self._title_label.setText(f"{self._page_title} ({count})")
 
-        # 3. 切换空提示/滚动区的显示
-        if not plugins:
-            self._empty_label.show()
-            self._scroll.hide()
-            return
-
-        self._empty_label.hide()
-        self._scroll.show()
+        # 3. 全部工具页：无工具时显示空提示
+        if self._is_all_page:
+            if not plugins:
+                self._empty_label.show()
+                self._scroll.hide()
+                return
+            self._empty_label.hide()
+            self._scroll.show()
 
         # 4. 创建新卡片并加入网格
         cols = 3
@@ -143,6 +178,10 @@ class ToolGridPage(QWidget):
             col = i % cols
             self._grid.addWidget(card, row, col)
             self.tool_cards.append(card)
+
+        # 5. 分类页：末尾放添加卡片
+        if not self._is_all_page:
+            self._place_add_card()
 
 
 class MainWindow(FluentWindow):
@@ -236,6 +275,40 @@ class MainWindow(FluentWindow):
             page.update_plugins(plugins)
             self._connect_card_signals(page)
 
+    def _add_tool_to_category(self, category_name: str):
+        """向指定分类添加工具"""
+        # 获取所有未被分类的工具
+        all_plugins = self.pm.list_plugins()
+        uncategorized = [p for p in all_plugins if not p.get("_db_category")]
+
+        if not uncategorized:
+            # 无未分类工具 → 导入插件
+            self._import_plugin()
+            return
+
+        # 弹出多选对话框
+        dialog = AddToolDialog(self, category_name=category_name, uncategorized_tools=uncategorized)
+        if dialog.exec_() != QDialog.Accepted:
+            return
+
+        selected = dialog.get_selected_tools()
+        if not selected:
+            return
+
+        # 批量设置分类
+        for tool in selected:
+            self.pm.set_plugin_category(tool["id"], category_name)
+
+        self.refresh_all()
+        names = "、".join(t["name"] for t in selected)
+        InfoBar.success(
+            "已添加",
+            f"已将 {names} 加入「{category_name}」",
+            parent=self,
+            duration=2000,
+            position=InfoBarPosition.TOP,
+        )
+
     def refresh_all(self):
         """刷新所有页面内容（不重建导航）"""
         self._refresh_category_pages()
@@ -251,7 +324,7 @@ class MainWindow(FluentWindow):
                 cat_id = self.cm.create(data["name"], icon_name, max_order + 1)
 
                 # 添加新页面到导航
-                page = ToolGridPage(self)
+                page = ToolGridPage(self, title=data["name"])
                 page.setObjectName(f"catPage_{cat_id}")
                 icon = fluent_icon_from_name(icon_name)
                 self.addSubInterface(page, icon, data["name"])

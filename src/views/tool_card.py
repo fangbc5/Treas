@@ -13,6 +13,52 @@ from qfluentwidgets import (
 from src.utils.icons import fluent_icon_from_name
 
 
+class AddToolCard(CardWidget):
+    """添加工具卡片 - 点击可添加工具到当前分类"""
+
+    add_requested = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._init_ui()
+        self.clicked.connect(lambda: self.add_requested.emit())
+
+    def _init_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setSpacing(8)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setAlignment(Qt.AlignCenter)
+
+        # 加号图标
+        add_label = QLabel()
+        add_icon = FluentIcon.ADD.icon()
+        add_label.setPixmap(add_icon.pixmap(40, 40))
+        add_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(add_label)
+
+        # 提示文字
+        hint_label = CaptionLabel("添加工具")
+        hint_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(hint_label)
+
+        self.setFixedWidth(220)
+        self.setMinimumHeight(180)
+        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+
+        # 虚线边框样式
+        self.setStyleSheet("""
+            AddToolCard {
+                border: 2px dashed #ccc;
+                border-radius: 8px;
+                background: transparent;
+            }
+            AddToolCard:hover {
+                border-color: #4a90d9;
+                background: rgba(74, 144, 217, 0.05);
+            }
+        """)
+
+
 class ToolCard(CardWidget):
     """工具卡片 - Fluent 风格"""
 
