@@ -221,6 +221,7 @@ class MainWindow(FluentWindow):
             card.open_requested.connect(self._open_plugin)
             card.export_requested.connect(self._export_single_plugin)
             card.delete_requested.connect(self._delete_plugin)
+            card.change_category_requested.connect(self._change_plugin_category)
 
     def _refresh_all_page(self):
         """刷新全部工具页"""
@@ -355,6 +356,38 @@ class MainWindow(FluentWindow):
         win = PluginWindow(plugin, self)
         win.show()
 
+    def _change_plugin_category(self, plugin_id: str):
+        """修改插件分类"""
+        categories = self.cm.get_all()
+        cat_names = [c["name"] for c in categories]
+        # 添加"无分类"选项
+        items = ["无分类"] + cat_names
+
+        # 获取当前分类
+        current_cat = self.pm.get_plugin_category_name(plugin_id)
+        current_text = current_cat if current_cat else "无分类"
+
+        item, ok = QInputDialog.getItem(
+            self, "修改分类",
+            f"选择工具「{plugin_id}」的分类:",
+            items,
+            items.index(current_text) if current_text in items else 0,
+            False,
+        )
+        if not ok:
+            return
+
+        new_cat = None if item == "无分类" else item
+        self.pm.set_plugin_category(plugin_id, new_cat)
+        self.refresh_all()
+        InfoBar.success(
+            "已更新",
+            f"工具分类已修改为「{item}」",
+            parent=self,
+            duration=2000,
+            position=InfoBarPosition.TOP,
+        )
+
     def _import_plugin(self):
         zip_path, _ = QFileDialog.getOpenFileName(
             self, "选择插件包", "", "Zip 文件 (*.zip)",
@@ -364,6 +397,20 @@ class MainWindow(FluentWindow):
             return
         try:
             plugin_id = self.sm.import_plugin(zip_path)
+
+            # 导入成功后，弹出分类选择
+            categories = self.cm.get_all()
+            cat_names = [c["name"] for c in categories]
+            items = ["不选择（仅在全部工具中显示）"] + cat_names
+
+            item, ok = QInputDialog.getItem(
+                self, "选择分类",
+                f"插件「{plugin_id}」导入成功，请选择分类:",
+                items, 0, False,
+            )
+            if ok and item != items[0]:
+                self.pm.set_plugin_category(plugin_id, item)
+
             self.refresh_all()
             InfoBar.success(
                 "导入成功",

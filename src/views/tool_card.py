@@ -4,6 +4,7 @@ from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QSizePolicy
 
+
 from qfluentwidgets import (
     CardWidget, StrongBodyLabel, CaptionLabel,
     PushButton, PrimaryPushButton, ToolButton, FluentIcon,
@@ -18,6 +19,7 @@ class ToolCard(CardWidget):
     open_requested = pyqtSignal(str)
     export_requested = pyqtSignal(str)
     delete_requested = pyqtSignal(str)
+    change_category_requested = pyqtSignal(str)
 
     def __init__(self, plugin_meta: dict, parent=None):
         super().__init__(parent)
@@ -68,8 +70,8 @@ class ToolCard(CardWidget):
         # 底部按钮
         btn_layout = QHBoxLayout()
 
-        open_btn = PrimaryPushButton("打开")
-        open_btn.setIcon(FluentIcon.PLAY)
+        open_btn = ToolButton(FluentIcon.PLAY)
+        open_btn.setToolTip("打开")
         open_btn.clicked.connect(lambda: self.open_requested.emit(self.plugin_id))
         btn_layout.addWidget(open_btn)
 
@@ -82,6 +84,11 @@ class ToolCard(CardWidget):
         delete_btn.setToolTip("删除插件")
         delete_btn.clicked.connect(lambda: self.delete_requested.emit(self.plugin_id))
         btn_layout.addWidget(delete_btn)
+
+        category_btn = ToolButton(FluentIcon.MENU)
+        category_btn.setToolTip("修改分类")
+        category_btn.clicked.connect(lambda: self.change_category_requested.emit(self.plugin_id))
+        btn_layout.addWidget(category_btn)
 
         btn_layout.addStretch()
         layout.addLayout(btn_layout)

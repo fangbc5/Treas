@@ -71,6 +71,8 @@ class PluginManager:
                     "dir": plugin_dir,
                     "loaded": False,
                 }
+                # 自动注册到数据库（使用 plugin.json 的默认分类）
+                self.ensure_registered(plugin_id)
             except Exception as e:
                 print(f"[PluginManager] 加载插件清单失败 {item}: {e}")
 
@@ -155,6 +157,8 @@ class PluginManager:
             meta["loaded"] = info["loaded"]
             meta["plugin_id"] = plugin_id
             meta["is_builtin"] = self.is_builtin(plugin_id)
+            # 从数据库获取实际分类
+            meta["_db_category"] = self.get_plugin_category_name(plugin_id)
             result.append(meta)
         # 内置工具置顶排序（按固定顺序，再按名称）
         _builtin_order = {pid: i for i, pid in enumerate(BUILTIN_PLUGIN_IDS)}
@@ -169,12 +173,80 @@ class PluginManager:
         """获取单个插件的元信息"""
         return self._metas.get(plugin_id)
 
+    def ensure_registered(self, plugin_id: str, category_name: str = None):
+        """确保插件在 plugin_registry 中注册
+        
+        首次注册时：使用 category_name 或 plugin.json 中的默认 category
+        已注册时：不修改
+        """
+        existing = self.db.query_one(
+            "SELECT id FROM plugin_registry WHERE plugin_id = ?", (plugin_id,)
+        )
+        if existing:
+            return
+
+        # 确定分类
+        if category_name is None:
+            meta = self._metas.get(plugin_id, {})
+            category_name = meta.get("category", None)
+
+        category_id = None
+        if category_name:
+            cat = self.db.query_one(
+                "SELECT id FROM categories WHERE name = ?", (category_name,)
+            )
+            if cat:
+                category_id = cat["id"]
+
+        self.db.execute(
+            "INSERT INTO plugin_registry (plugin_id, category_id) VALUES (?, ?)",
+            (plugin_id, category_id),
+        )
+
+    def set_plugin_category(self, plugin_id: str, category_name: str = None):
+        """设置插件的分类（category_name=None 表示无分类）"""
+        category_id = None
+        if category_name:
+            cat = self.db.query_one(
+                "SELECT id FROM categories WHERE name = ?", (category_name,)
+            )
+            if cat:
+                category_id = cat["id"]
+
+        existing = self.db.query_one(
+            "SELECT id FROM plugin_registry WHERE plugin_id = ?", (plugin_id,)
+        )
+        if existing:
+            self.db.execute(
+                "UPDATE plugin_registry SET category_id = ? WHERE plugin_id = ?",
+                (category_id, plugin_id),
+            )
+        else:
+            self.db.execute(
+                "INSERT INTO plugin_registry (plugin_id, category_id) VALUES (?, ?)",
+                (plugin_id, category_id),
+            )
+
+    def get_plugin_category_name(self, plugin_id: str) -> Optional[str]:
+        """获取插件的分类名称（从数据库），返回 None 表示未分类"""
+        row = self.db.query_one(
+            "SELECT category_id FROM plugin_registry WHERE plugin_id = ?",
+            (plugin_id,),
+        )
+        if row and row["category_id"]:
+            cat = self.db.query_one(
+                "SELECT name FROM categories WHERE id = ?", (row["category_id"],)
+            )
+            if cat:
+                return cat["name"]
+        return None
+
     def get_plugins_by_category(self, category_name: str = None) -> list:
         """按分类筛选插件（排除已隐藏的，内置工具置顶）"""
         all_plugins = self.list_plugins()
         if category_name is None or category_name == "全部工具":
             return all_plugins
-        return [p for p in all_plugins if p.get("category") == category_name]
+        return [p for p in all_plugins if p.get("_db_category") == category_name]
 
     def delete_plugin(self, plugin_id: str) -> bool:
         """删除插件
