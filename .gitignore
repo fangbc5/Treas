@@ -12,12 +12,9 @@ build/
 data/treas.db
 exported/*.zip
 
-# 自定义插件（非内置的，用户导入的）
+# 自定义插件（用户导入的，非内置）
 plugins/*
-!plugins/calculator/
-!plugins/currency_converter/
-!plugins/simple_ledger/
-!plugins/social_insurance/
+!plugins/.gitkeep
 
 # IDE
 .idea/

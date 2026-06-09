@@ -3,7 +3,7 @@
     "name": "五险一金计算器",
     "version": "1.0.0",
     "description": "计算五险一金明细、工资个税及年终奖单独计税",
-    "category": "财务工具",
+    "category": "计算工具",
     "icon": "BOOK_SHELF",
     "entry": "widget.py",
     "entry_class": "PluginWidget",

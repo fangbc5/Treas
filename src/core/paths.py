@@ -36,8 +36,13 @@ def get_export_dir() -> str:
     return path
 
 
+def get_builtin_plugins_dir() -> str:
+    """获取内置插件目录（src/plugins，随程序打包）"""
+    return os.path.join(get_app_root(), "src", "plugins")
+
+
 def get_plugins_dir() -> str:
-    """获取插件目录（内置+自定义）"""
+    """获取用户自定义插件目录"""
     path = os.path.join(get_app_root(), "plugins")
     os.makedirs(path, exist_ok=True)
     return path

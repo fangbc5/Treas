@@ -458,9 +458,9 @@ class MainWindow(FluentWindow):
 
         # 根据是否内置插件显示不同提示
         if is_builtin:
-            hint = f"确定要删除内置工具「{plugin_name}」吗？\n\n内置工具删除后可通过「重置内置工具」按钮恢复。"
+            hint = f"确定要删除内置工具「{plugin_name}」吗？\n\n可通过「重置内置工具」按钮恢复。"
         else:
-            hint = f"确定要删除工具「{plugin_name}」吗？\n\n此操作将彻底删除该工具，无法恢复！"
+            hint = f"确定要删除工具「{plugin_name}」吗？"
 
         msg = MessageBox("确认删除", hint, self)
         if not msg.exec():

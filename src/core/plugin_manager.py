@@ -2,7 +2,6 @@
 
 import os
 import json
-import shutil
 import importlib
 import importlib.util
 from typing import Dict, Optional
@@ -42,13 +41,21 @@ class PluginManager:
         return plugin_id in BUILTIN_PLUGIN_IDS
 
     def discover_plugins(self):
-        """扫描 plugins/ 目录，发现所有可用插件"""
-        from src.core.paths import get_plugins_dir
-        plugins_dir = get_plugins_dir()
+        """扫描内置插件和自定义插件目录，发现所有可用插件"""
+        from src.core.paths import get_builtin_plugins_dir, get_plugins_dir
 
-        if not os.path.isdir(plugins_dir):
-            return
+        # 先扫描内置插件目录（src/plugins）
+        builtin_dir = get_builtin_plugins_dir()
+        if os.path.isdir(builtin_dir):
+            self._scan_plugin_dir(builtin_dir)
 
+        # 再扫描自定义插件目录（plugins）
+        custom_dir = get_plugins_dir()
+        if os.path.isdir(custom_dir):
+            self._scan_plugin_dir(custom_dir)
+
+    def _scan_plugin_dir(self, plugins_dir: str):
+        """扫描指定目录下的插件"""
         for item in os.listdir(plugins_dir):
             plugin_dir = os.path.join(plugins_dir, item)
             manifest_path = os.path.join(plugin_dir, "plugin.json")
@@ -62,6 +69,10 @@ class PluginManager:
 
                 plugin_id = meta.get("id")
                 if not plugin_id:
+                    continue
+
+                # 如果已注册（内置插件优先），跳过重复
+                if plugin_id in self._plugins:
                     continue
 
                 self._metas[plugin_id] = meta
@@ -173,30 +184,40 @@ class PluginManager:
         """获取单个插件的元信息"""
         return self._metas.get(plugin_id)
 
+    def _resolve_category_id(self, category_name: str) -> Optional[int]:
+        """根据分类名称查找 category_id"""
+        if not category_name:
+            return None
+        cat = self.db.query_one(
+            "SELECT id FROM categories WHERE name = ?", (category_name,)
+        )
+        return cat["id"] if cat else None
+
     def ensure_registered(self, plugin_id: str, category_name: str = None):
         """确保插件在 plugin_registry 中注册
         
         首次注册时：使用 category_name 或 plugin.json 中的默认 category
-        已注册时：不修改
+        已注册但 category_id 为空时：尝试用 plugin.json 的默认分类补充
         """
         existing = self.db.query_one(
-            "SELECT id FROM plugin_registry WHERE plugin_id = ?", (plugin_id,)
+            "SELECT id, category_id FROM plugin_registry WHERE plugin_id = ?",
+            (plugin_id,),
         )
-        if existing:
-            return
 
         # 确定分类
         if category_name is None:
             meta = self._metas.get(plugin_id, {})
             category_name = meta.get("category", None)
+        category_id = self._resolve_category_id(category_name)
 
-        category_id = None
-        if category_name:
-            cat = self.db.query_one(
-                "SELECT id FROM categories WHERE name = ?", (category_name,)
-            )
-            if cat:
-                category_id = cat["id"]
+        if existing:
+            # 已注册但 category_id 为空，尝试补充
+            if existing["category_id"] is None and category_id is not None:
+                self.db.execute(
+                    "UPDATE plugin_registry SET category_id = ? WHERE plugin_id = ?",
+                    (category_id, plugin_id),
+                )
+            return
 
         self.db.execute(
             "INSERT INTO plugin_registry (plugin_id, category_id) VALUES (?, ?)",
@@ -205,13 +226,7 @@ class PluginManager:
 
     def set_plugin_category(self, plugin_id: str, category_name: str = None):
         """设置插件的分类（category_name=None 表示无分类）"""
-        category_id = None
-        if category_name:
-            cat = self.db.query_one(
-                "SELECT id FROM categories WHERE name = ?", (category_name,)
-            )
-            if cat:
-                category_id = cat["id"]
+        category_id = self._resolve_category_id(category_name)
 
         existing = self.db.query_one(
             "SELECT id FROM plugin_registry WHERE plugin_id = ?", (plugin_id,)
@@ -249,9 +264,7 @@ class PluginManager:
         return [p for p in all_plugins if p.get("_db_category") == category_name]
 
     def delete_plugin(self, plugin_id: str) -> bool:
-        """删除插件
-        - 内置插件：标记为隐藏（从列表中移除，文件保留）
-        - 自定义插件：彻底删除文件
+        """删除插件（软删除 - 标记为隐藏，不删除文件）
         返回 True 表示成功
         """
         if plugin_id not in self._plugins:
@@ -260,25 +273,16 @@ class PluginManager:
         # 先卸载实例
         self.unload_plugin(plugin_id)
 
-        if self.is_builtin(plugin_id):
-            # 内置插件：仅标记隐藏
-            existing = self.db.query_one(
-                "SELECT id FROM hidden_tools WHERE plugin_id = ?", (plugin_id,)
+        # 所有删除都是软删除
+        existing = self.db.query_one(
+            "SELECT id FROM hidden_tools WHERE plugin_id = ?", (plugin_id,)
+        )
+        if not existing:
+            is_builtin = 1 if self.is_builtin(plugin_id) else 0
+            self.db.execute(
+                "INSERT INTO hidden_tools (plugin_id, is_builtin) VALUES (?, ?)",
+                (plugin_id, is_builtin),
             )
-            if not existing:
-                self.db.execute(
-                    "INSERT INTO hidden_tools (plugin_id, is_builtin) VALUES (?, 1)",
-                    (plugin_id,),
-                )
-        else:
-            # 自定义插件：删除文件并从内存移除
-            plugin_dir = self._plugins[plugin_id]["dir"]
-            if os.path.isdir(plugin_dir):
-                shutil.rmtree(plugin_dir)
-            if plugin_id in self._plugins:
-                del self._plugins[plugin_id]
-            if plugin_id in self._metas:
-                del self._metas[plugin_id]
 
         return True
 
