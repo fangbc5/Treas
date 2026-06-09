@@ -1,32 +1,29 @@
 """主窗口 - 基于 QFluentWidgets FluentWindow"""
 
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
+    QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QScrollArea, QFileDialog,
-    QInputDialog, QSizePolicy,
+    QInputDialog,
 )
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QDialog
-from PyQt5.QtGui import QFont
 
 from qfluentwidgets import (
-    FluentWindow, FluentIcon, NavigationItemPosition,
-    SubtitleLabel, CaptionLabel, PushButton, PrimaryPushButton,
-    TransparentToolButton, ToolButton, InfoBar, InfoBarPosition,
-    CardWidget, HeaderCardWidget, StrongBodyLabel,
-    RoundMenu, Action, Dialog, MessageBox,
-    setFont,
+    FluentWindow, FluentIcon, SubtitleLabel, PushButton, PrimaryPushButton,
+    InfoBar, InfoBarPosition,
+    RoundMenu, Action, MessageBox,
 )
 
 from src.core.plugin_manager import PluginManager
 from src.core.category_manager import CategoryManager
 from src.core.share_manager import ShareManager
 from src.utils.icons import (
-    CATEGORY_ICONS, UI_ICONS, get_fluent_icon, fluent_icon_from_name,
+    fluent_icon_from_name,
 )
 from src.views.tool_card import ToolCard, AddToolCard
 from src.views.category_dialog import CategoryDialog
 from src.views.add_tool_dialog import AddToolDialog
+from src.utils.flow_layout import FlowLayout
 
 
 class ToolGridPage(QWidget):
@@ -86,9 +83,7 @@ class ToolGridPage(QWidget):
 
         # 滚动区域 + 网格容器（固定结构，初始化一次）
         self._grid_container = QWidget()
-        self._grid = QGridLayout(self._grid_container)
-        self._grid.setSpacing(16)
-        self._grid.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        self._grid = FlowLayout(self._grid_container, spacing=16)
 
         self._scroll = QScrollArea()
         self._scroll.setWidgetResizable(True)
@@ -133,14 +128,10 @@ class ToolGridPage(QWidget):
         self._place_add_card()
 
     def _place_add_card(self):
-        """将添加卡片放到网格末尾"""
+        """将添加卡片放到布局末尾"""
         if self._add_card is None:
             return
-        cols = 3
-        idx = len(self._plugins)
-        row = idx // cols
-        col = idx % cols
-        self._grid.addWidget(self._add_card, row, col)
+        self._grid.addWidget(self._add_card)
 
     def _on_add_tool_clicked(self):
         """添加工具卡片被点击"""
@@ -170,13 +161,10 @@ class ToolGridPage(QWidget):
             self._empty_label.hide()
             self._scroll.show()
 
-        # 4. 创建新卡片并加入网格
-        cols = 3
+        # 4. 创建新卡片并加入布局
         for i, plugin in enumerate(plugins):
             card = ToolCard(plugin)
-            row = i // cols
-            col = i % cols
-            self._grid.addWidget(card, row, col)
+            self._grid.addWidget(card)
             self.tool_cards.append(card)
 
         # 5. 分类页：末尾放添加卡片
