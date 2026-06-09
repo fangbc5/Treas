@@ -1,24 +1,54 @@
 """路径管理 - 统一管理应用所有数据目录
 
 开发时：基于项目根目录
-打包后：基于可执行文件所在目录
+打包后（PyInstaller）：
+  - 内置资源（src/plugins）→ sys._MEIPASS 临时解压目录
+  - 用户数据（data/plugins/exported）→ 可执行文件同级目录
+  - macOS .app → Contents/Resources/ 目录
 """
 
 import os
 import sys
 
 
+def _is_frozen() -> bool:
+    """是否为 PyInstaller 打包环境"""
+    return getattr(sys, 'frozen', False)
+
+
+def _is_macos_app() -> bool:
+    """是否为 macOS .app 包"""
+    return (_is_frozen()
+            and sys.platform == 'darwin'
+            and '.app/Contents/MacOS/' in sys.executable)
+
+
 def get_app_root() -> str:
-    """获取应用根目录
+    """获取应用数据根目录（用户可读写）
 
     开发时：项目根目录（src 的父目录）
-    打包后（PyInstaller）：可执行文件所在目录
+    macOS .app：~/Library/Application Support/Treas/
+    Windows/Linux 打包：可执行文件所在目录
     """
-    # PyInstaller 打包后会有 _MEIPASS 属性
-    if getattr(sys, 'frozen', False):
-        # 打包后：可执行文件所在目录
+    if _is_macos_app():
+        # macOS 标准：用户数据放在 Application Support
+        return os.path.join(os.path.expanduser('~'), 'Library',
+                           'Application Support', 'Treas')
+    elif _is_frozen():
+        # Windows/Linux：可执行文件所在目录
         return os.path.dirname(sys.executable)
     # 开发时：src/core/paths.py → 向上3层到项目根目录
+    return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def get_resource_root() -> str:
+    """获取内置资源根目录（只读，随包分发）
+
+    开发时：项目根目录
+    打包后：sys._MEIPASS（PyInstaller 临时解压目录）
+    """
+    if _is_frozen():
+        return sys._MEIPASS
     return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
@@ -37,8 +67,11 @@ def get_export_dir() -> str:
 
 
 def get_builtin_plugins_dir() -> str:
-    """获取内置插件目录（src/plugins，随程序打包）"""
-    return os.path.join(get_app_root(), "src", "plugins")
+    """获取内置插件目录（src/plugins，随程序打包）
+
+    打包后从 _MEIPASS 读取（只读资源）
+    """
+    return os.path.join(get_resource_root(), "src", "plugins")
 
 
 def get_plugins_dir() -> str:
@@ -58,3 +91,11 @@ def get_plugins_site_packages_dir() -> str:
 def get_db_path() -> str:
     """获取数据库文件路径"""
     return os.path.join(get_data_dir(), "treas.db")
+
+
+def ensure_app_dirs():
+    """首次运行时确保所有必要目录存在"""
+    get_data_dir()
+    get_export_dir()
+    get_plugins_dir()
+    get_plugins_site_packages_dir()

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Treas 财务工具箱启动脚本
+# Treas 淼淼百宝箱启动脚本
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"

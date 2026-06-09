@@ -190,7 +190,7 @@ class MainWindow(FluentWindow):
         self._init_navigation()
 
     def _init_window(self):
-        self.setWindowTitle("Treas - 财务工具箱")
+        self.setWindowTitle("Treas - 淼淼百宝箱")
         self.setMinimumSize(900, 600)
         self.resize(1100, 700)
         self.setWindowIcon(FluentIcon.APPLICATION.icon())

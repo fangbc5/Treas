@@ -152,10 +152,12 @@ class ToolCard(CardWidget):
         open_btn.clicked.connect(lambda: self.open_requested.emit(self.plugin_id))
         btn_layout.addWidget(open_btn)
 
-        share_btn = ToolButton(FluentIcon.SHARE)
-        share_btn.setToolTip("分享插件")
-        share_btn.clicked.connect(lambda: self.export_requested.emit(self.plugin_id))
-        btn_layout.addWidget(share_btn)
+        # 内置工具不显示分享按钮
+        if not self.is_builtin:
+            share_btn = ToolButton(FluentIcon.SHARE)
+            share_btn.setToolTip("分享插件")
+            share_btn.clicked.connect(lambda: self.export_requested.emit(self.plugin_id))
+            btn_layout.addWidget(share_btn)
 
         delete_btn = ToolButton(FluentIcon.DELETE)
         delete_btn.setToolTip("删除插件")

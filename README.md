@@ -1,4 +1,4 @@
-# Treas - 财务工具箱
+# Treas - 淼淼百宝箱
 
 一个基于 PyQt5 + PyQt-Fluent-Widgets 的插件式财务小工具箱平台，支持工具分类管理、插件动态加载和分享。
 
@@ -85,58 +85,27 @@ Treas/
 
 ## 如何开发新插件
 
-### 1. 创建插件目录
+> 📘 **[完整插件开发指南 →](PLUGIN_DEV_GUIDE.md)**
 
-在 `src/plugins/` 下创建新目录，包含以下文件：
+只需 **2 个文件** 即可创建插件：`plugin.json`（描述清单）+ `widget.py`（UI 实现）。
+
+### 快速示例
 
 ```
-src/plugins/my_tool/
+plugins/my_tool/
 ├── plugin.json    # 插件描述清单
-└── widget.py      # 插件UI实现
+└── widget.py      # 插件UI实现（继承 PluginBase）
 ```
 
-### 2. 编写 plugin.json
+插件支持声明第三方依赖（自动检测 + 一键安装）、导出为 zip 分享给其他用户。
 
-```json
-{
-  "id": "my_tool",
-  "name": "我的工具",
-  "version": "1.0.0",
-  "author": "你的名字",
-  "description": "工具描述",
-  "icon": "APPLICATION",
-  "category": "计算工具",
-  "entry": "widget.py",
-  "entry_class": "PluginWidget"
-}
-```
-
-### 3. 编写 widget.py
-
-```python
-import sys, os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
-from PyQt5.QtWidgets import QVBoxLayout, QLabel
-from src.core.plugin_base import PluginBase
-
-
-class PluginWidget(PluginBase):
-    plugin_id = "my_tool"
-    plugin_name = "我的工具"
-    plugin_version = "1.0.0"
-    plugin_description = "工具描述"
-    plugin_icon = "APPLICATION"
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("Hello from my tool!"))
-```
-
-### 4. 分享插件
-
-在应用中点击工具卡片上的"分享"按钮，即可打包为 zip 文件。
+详细规范请参阅 **[PLUGIN_DEV_GUIDE.md](PLUGIN_DEV_GUIDE.md)**，包含：
+- plugin.json 完整字段说明
+- 插件生命周期（on_activate / on_deactivate）
+- 可用图标列表
+- 依赖管理机制
+- 完整示例代码
+- 最佳实践与常见问题
 
 ## 技术栈
 
