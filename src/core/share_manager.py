@@ -73,6 +73,11 @@ class ShareManager:
                 shutil.rmtree(dest_dir)
             shutil.copytree(tmp_dir, dest_dir)
 
+        # 清除可能残留的隐藏标记（防御性处理）
+        self.pm.db.execute(
+            "DELETE FROM hidden_tools WHERE plugin_id = ?", (plugin_id,)
+        )
+
         # 重新发现插件
         self.pm.discover_plugins()
         return plugin_id

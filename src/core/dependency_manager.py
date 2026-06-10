@@ -276,6 +276,7 @@ class DependencyManager:
                                   site_dir: str) -> Tuple[bool, str]:
         """打包模式：查找系统 Python 并通过 subprocess 调用 pip"""
         import os
+        import platform
 
         python_path = self._find_system_python()
         if not python_path:
@@ -291,13 +292,17 @@ class DependencyManager:
             "--no-warn-script-location",
         ] + packages
 
+        # Windows 上隐藏控制台黑色窗口
+        kwargs = dict(
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        if platform.system() == 'Windows':
+            kwargs['creationflags'] = 0x08000000  # subprocess.CREATE_NO_WINDOW
+
         try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=300,
-            )
+            result = subprocess.run(cmd, **kwargs)
 
             if result.returncode != 0:
                 return False, f"pip install 失败:\n{result.stderr}"

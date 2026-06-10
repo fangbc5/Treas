@@ -290,8 +290,8 @@ class PluginManager:
     def delete_plugin(self, plugin_id: str, keep_data: bool = True) -> bool:
         """删除插件
 
-        内置插件：软删除（标记为隐藏）
-        自定义插件：隐藏 + 可选删除插件文件和数据
+        内置插件：软删除（标记为隐藏，文件仍在）
+        自定义插件：硬删除（删除文件 + 清理数据库记录）
 
         Args:
             plugin_id: 插件 ID
@@ -306,22 +306,34 @@ class PluginManager:
         # 先卸载实例
         self.unload_plugin(plugin_id)
 
-        # 标记为隐藏
-        existing = self.db.query_one(
-            "SELECT id FROM hidden_tools WHERE plugin_id = ?", (plugin_id,)
-        )
-        if not existing:
-            is_builtin = 1 if self.is_builtin(plugin_id) else 0
-            self.db.execute(
-                "INSERT INTO hidden_tools (plugin_id, is_builtin) VALUES (?, ?)",
-                (plugin_id, is_builtin),
+        if self.is_builtin(plugin_id):
+            # 内置插件：软删除（标记为隐藏，文件不可删）
+            existing = self.db.query_one(
+                "SELECT id FROM hidden_tools WHERE plugin_id = ?", (plugin_id,)
             )
-
-        # 自定义插件：删除插件文件
-        if not self.is_builtin(plugin_id):
+            if not existing:
+                self.db.execute(
+                    "INSERT INTO hidden_tools (plugin_id, is_builtin) VALUES (?, ?)",
+                    (plugin_id, 1),
+                )
+        else:
+            # 自定义插件：硬删除（删除文件 + 清理所有数据库记录）
             self._delete_plugin_files(plugin_id, keep_data)
+            self._cleanup_plugin_db_records(plugin_id)
 
         return True
+
+    def _cleanup_plugin_db_records(self, plugin_id: str):
+        """清理自定义插件的所有数据库记录"""
+        self.db.execute(
+            "DELETE FROM hidden_tools WHERE plugin_id = ?", (plugin_id,)
+        )
+        self.db.execute(
+            "DELETE FROM plugin_registry WHERE plugin_id = ?", (plugin_id,)
+        )
+        self.db.execute(
+            "DELETE FROM plugin_dependencies WHERE plugin_id = ?", (plugin_id,)
+        )
 
     def _delete_plugin_files(self, plugin_id: str, keep_data: bool = True):
         """删除自定义插件的文件

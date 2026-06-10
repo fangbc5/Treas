@@ -14,7 +14,7 @@ from PyQt5.QtWidgets import QDialog
 
 from qfluentwidgets import (
     FluentWindow, FluentIcon, SubtitleLabel, PushButton, PrimaryPushButton,
-    InfoBar, InfoBarPosition,
+    InfoBar, InfoBarPosition, StateToolTip,
     RoundMenu, Action, MessageBox,
 )
 
@@ -187,6 +187,7 @@ class MainWindow(FluentWindow):
 
         self._category_pages = {}  # category_name -> ToolGridPage
         self._all_page = None
+        self._state_tooltip = None  # 安装依赖状态提示
 
         self._init_window()
         self._init_navigation()
@@ -745,6 +746,23 @@ class MainWindow(FluentWindow):
         if not msg.exec():
             return
 
+        # 显示状态提示（带旋转动画，跨平台通用，居中显示）
+        self._state_tooltip = StateToolTip(
+            "正在安装依赖...",
+            f"正在安装: {', '.join(details)}，请稍候...",
+            self,
+        )
+        # 延迟居中（先 show 让控件获得实际尺寸，再移动到窗口中央）
+        self._state_tooltip.show()
+        from PyQt5.QtCore import QTimer
+        def _center_tooltip():
+            if self._state_tooltip:
+                self._state_tooltip.move(
+                    (self.width() - self._state_tooltip.width()) // 2,
+                    (self.height() - self._state_tooltip.height()) // 2,
+                )
+        QTimer.singleShot(0, _center_tooltip)
+
         # 在后台线程中安装
         class InstallThread(QThread):
             success = False
@@ -764,33 +782,20 @@ class MainWindow(FluentWindow):
         )
         self._install_thread.start()
 
-        InfoBar.info(
-            "安装中",
-            f"正在安装依赖: {', '.join(details)}",
-            parent=self,
-            duration=3000,
-            position=InfoBarPosition.TOP,
-        )
-
     def _on_deps_installed(self, plugin_id: str, thread):
         """依赖安装完成回调"""
+        if hasattr(self, '_state_tooltip') and self._state_tooltip:
+            if thread.success:
+                self._state_tooltip.setContent("依赖安装成功 ✅")
+                self._state_tooltip.setState(True)
+                self._state_tooltip = None
+            else:
+                self._state_tooltip.setContent(f"安装失败: {thread.message}")
+                self._state_tooltip.setState(False)
+                self._state_tooltip = None
+
         if thread.success:
             self.refresh_all()
-            InfoBar.success(
-                "安装成功",
-                f"工具「{plugin_id}」的依赖已安装完成",
-                parent=self,
-                duration=3000,
-                position=InfoBarPosition.TOP,
-            )
-        else:
-            InfoBar.error(
-                "安装失败",
-                thread.message,
-                parent=self,
-                duration=5000,
-                position=InfoBarPosition.TOP,
-            )
 
     def resizeEvent(self, e):
         """重写：macOS 上标题栏横跨全宽"""
