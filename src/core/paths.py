@@ -88,6 +88,28 @@ def get_plugins_site_packages_dir() -> str:
     return path
 
 
+def get_plugin_data_dir() -> str:
+    """获取插件专属数据目录（每个插件一个独立数据库文件）"""
+    path = os.path.join(get_data_dir(), "plugin_data")
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+def get_plugin_db_path(plugin_id: str, shared_group: str = None) -> str:
+    """获取插件数据库文件路径
+
+    Args:
+        plugin_id: 插件 ID
+        shared_group: 共享组名，为 None 时使用独立数据库
+    Returns:
+        数据库文件路径
+    """
+    data_dir = get_plugin_data_dir()
+    if shared_group:
+        return os.path.join(data_dir, f"group_{shared_group}.db")
+    return os.path.join(data_dir, f"{plugin_id}.db")
+
+
 def get_db_path() -> str:
     """获取数据库文件路径"""
     return os.path.join(get_data_dir(), "treas.db")
@@ -99,3 +121,4 @@ def ensure_app_dirs():
     get_export_dir()
     get_plugins_dir()
     get_plugins_site_packages_dir()
+    get_plugin_data_dir()

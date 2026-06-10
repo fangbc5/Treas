@@ -141,6 +141,16 @@ class PluginManager:
                 print(f"[PluginManager] {entry_class} 未继承 PluginBase")
                 return None
 
+            # 注入数据库配置（仅自定义插件，不影响内置插件）
+            db_config = meta.get("database")
+            if db_config and not self.is_builtin(plugin_id):
+                instance._db_config = db_config
+                # 首次加载时初始化数据库
+                try:
+                    instance.init_database()
+                except Exception as e:
+                    print(f"[PluginManager] 初始化插件 {plugin_id} 数据库失败: {e}")
+
             plugin_info["loaded"] = True
             self._instances[plugin_id] = instance
             return instance
@@ -274,9 +284,18 @@ class PluginManager:
             return all_plugins
         return [p for p in all_plugins if p.get("_db_category") == category_name]
 
-    def delete_plugin(self, plugin_id: str) -> bool:
-        """删除插件（软删除 - 标记为隐藏，不删除文件）
-        返回 True 表示成功
+    def delete_plugin(self, plugin_id: str, keep_data: bool = True) -> bool:
+        """删除插件
+
+        内置插件：软删除（标记为隐藏）
+        自定义插件：隐藏 + 可选删除插件文件和数据
+
+        Args:
+            plugin_id: 插件 ID
+            keep_data: 是否保留插件数据（仅自定义插件有效）
+
+        Returns:
+            True 表示成功
         """
         if plugin_id not in self._plugins:
             return False
@@ -284,7 +303,7 @@ class PluginManager:
         # 先卸载实例
         self.unload_plugin(plugin_id)
 
-        # 所有删除都是软删除
+        # 标记为隐藏
         existing = self.db.query_one(
             "SELECT id FROM hidden_tools WHERE plugin_id = ?", (plugin_id,)
         )
@@ -295,7 +314,77 @@ class PluginManager:
                 (plugin_id, is_builtin),
             )
 
+        # 自定义插件：删除插件文件
+        if not self.is_builtin(plugin_id):
+            self._delete_plugin_files(plugin_id, keep_data)
+
         return True
+
+    def _delete_plugin_files(self, plugin_id: str, keep_data: bool = True):
+        """删除自定义插件的文件
+
+        Args:
+            plugin_id: 插件 ID
+            keep_data: 是否保留数据库文件
+        """
+        import shutil
+
+        plugin_info = self._plugins.get(plugin_id)
+        if not plugin_info:
+            return
+
+        # 删除插件目录
+        plugin_dir = plugin_info.get("dir")
+        if plugin_dir and os.path.isdir(plugin_dir):
+            try:
+                shutil.rmtree(plugin_dir)
+            except Exception as e:
+                print(f"[PluginManager] 删除插件目录失败 {plugin_dir}: {e}")
+
+        # 删除数据库文件（如果不保留）
+        if not keep_data:
+            meta = plugin_info.get("meta", {})
+            db_config = meta.get("database")
+            if db_config:
+                from src.core.paths import get_plugin_db_path
+
+                db_path = get_plugin_db_path(plugin_id, db_config.get("shared_group"))
+                if os.path.exists(db_path):
+                    try:
+                        os.remove(db_path)
+                    except Exception as e:
+                        print(f"[PluginManager] 删除数据库文件失败 {db_path}: {e}")
+
+        # 从内存中移除
+        if plugin_id in self._plugins:
+            del self._plugins[plugin_id]
+        if plugin_id in self._metas:
+            del self._metas[plugin_id]
+
+    def get_plugin_db_info(self, plugin_id: str) -> dict:
+        """获取插件的数据库信息（用于删除确认对话框）
+
+        Returns:
+            {"has_db": bool, "db_path": str, "db_exists": bool, "db_size": int}
+        """
+        meta = self._metas.get(plugin_id, {})
+        db_config = meta.get("database")
+        if not db_config:
+            return {"has_db": False, "db_path": None, "db_exists": False, "db_size": 0}
+
+        from src.core.paths import get_plugin_db_path
+        import os
+
+        db_path = get_plugin_db_path(plugin_id, db_config.get("shared_group"))
+        exists = os.path.exists(db_path)
+        size = os.path.getsize(db_path) if exists else 0
+
+        return {
+            "has_db": True,
+            "db_path": db_path,
+            "db_exists": exists,
+            "db_size": size,
+        }
 
     def reset_builtin_plugins(self) -> int:
         """重置所有内置插件（取消隐藏）

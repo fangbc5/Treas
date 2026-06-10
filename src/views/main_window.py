@@ -567,19 +567,33 @@ class MainWindow(FluentWindow):
         # 根据是否内置插件显示不同提示
         if is_builtin:
             hint = f"确定要删除内置工具「{plugin_name}」吗？\n\n可通过「重置内置工具」按钮恢复。"
+            msg = MessageBox("确认删除", hint, self)
+            if not msg.exec():
+                return
+            keep_data = True  # 内置插件不涉及数据删除
         else:
-            hint = f"确定要删除工具「{plugin_name}」吗？"
-
-        msg = MessageBox("确认删除", hint, self)
-        if not msg.exec():
-            return
+            # 自定义插件：检查是否有数据库
+            db_info = self.pm.get_plugin_db_info(plugin_id)
+            if db_info["has_db"] and db_info["db_exists"]:
+                keep_data = self._show_delete_with_data_dialog(plugin_name, db_info)
+                if keep_data is None:
+                    return  # 用户取消
+            else:
+                hint = f"确定要删除工具「{plugin_name}」吗？"
+                msg = MessageBox("确认删除", hint, self)
+                if not msg.exec():
+                    return
+                keep_data = True
 
         try:
-            self.pm.delete_plugin(plugin_id)
+            self.pm.delete_plugin(plugin_id, keep_data=keep_data)
             self.refresh_all()
+            data_msg = ""
+            if not is_builtin:
+                data_msg = "（数据已保留）" if keep_data else "（数据已清除）"
             InfoBar.success(
                 "已删除",
-                f"工具「{plugin_name}」已删除",
+                f"工具「{plugin_name}」已删除{data_msg}",
                 parent=self,
                 duration=3000,
                 position=InfoBarPosition.TOP,
@@ -592,6 +606,74 @@ class MainWindow(FluentWindow):
                 duration=3000,
                 position=InfoBarPosition.TOP,
             )
+
+    def _show_delete_with_data_dialog(self, plugin_name: str, db_info: dict):
+        """显示自定义插件的删除对话框（含数据保留选项）
+
+        Returns:
+            True: 保留数据并删除
+            False: 彻底删除（含数据）
+            None: 用户取消
+        """
+        size_str = self._format_file_size(db_info["db_size"])
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("确认删除")
+        dialog.setMinimumWidth(400)
+        layout = QVBoxLayout(dialog)
+
+        # 提示文字
+        from PyQt5.QtWidgets import QRadioButton, QButtonGroup
+
+        hint = QLabel(f"确定要删除工具「{plugin_name}」吗？\n\n"
+                      f"该工具包含数据文件（{size_str}），请选择处理方式：")
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+
+        # 选项
+        group = QButtonGroup(dialog)
+        radio_keep = QRadioButton(f"保留数据并删除插件（数据文件：{size_str}）")
+        radio_delete = QRadioButton("彻底删除（同时清除所有数据）")
+        radio_keep.setChecked(True)
+        group.addButton(radio_keep)
+        group.addButton(radio_delete)
+        layout.addWidget(radio_keep)
+        layout.addWidget(radio_delete)
+
+        # 按钮
+        btn_layout = QHBoxLayout()
+        cancel_btn = PushButton("取消")
+        confirm_btn = PrimaryPushButton("确认删除")
+        btn_layout.addStretch()
+        btn_layout.addWidget(cancel_btn)
+        btn_layout.addWidget(confirm_btn)
+        layout.addLayout(btn_layout)
+
+        result = [None]
+
+        def on_cancel():
+            result[0] = None
+            dialog.reject()
+
+        def on_confirm():
+            result[0] = radio_keep.isChecked()  # True=保留, False=彻底删除
+            dialog.accept()
+
+        cancel_btn.clicked.connect(on_cancel)
+        confirm_btn.clicked.connect(on_confirm)
+
+        dialog.exec_()
+        return result[0]
+
+    @staticmethod
+    def _format_file_size(size_bytes: int) -> str:
+        """格式化文件大小"""
+        if size_bytes < 1024:
+            return f"{size_bytes} B"
+        elif size_bytes < 1024 * 1024:
+            return f"{size_bytes / 1024:.1f} KB"
+        else:
+            return f"{size_bytes / (1024 * 1024):.1f} MB"
 
     def _reset_builtin_plugins(self):
         """重置所有内置工具（恢复被删除的内置工具）"""

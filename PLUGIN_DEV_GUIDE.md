@@ -12,10 +12,11 @@
 4. [widget.py 开发指南](#4-widgetpy-开发指南)
 5. [可用图标列表](#5-可用图标列表)
 6. [依赖管理](#6-依赖管理)
-7. [插件分享流程](#7-插件分享流程)
-8. [最佳实践](#8-最佳实践)
-9. [完整示例](#9-完整示例带第三方依赖)
-10. [常见问题](#10-常见问题)
+7. [插件数据库](#7-插件数据库)
+8. [插件分享流程](#8-插件分享流程)
+9. [最佳实践](#9-最佳实践)
+10. [完整示例](#10-完整示例带第三方依赖)
+11. [常见问题](#11-常见问题)
 
 ---
 
@@ -400,7 +401,154 @@ input_field.setPlaceholderText("请输入金额...")
 
 ---
 
-## 7. 插件分享流程
+## 7. 插件数据库
+
+自定义插件可以使用专属的 SQLite 数据库来存储数据。内置插件使用公共数据库（`Database` 单例）。
+
+### 基本配置
+
+在 `plugin.json` 中添加 `database` 字段即可启用：
+
+```json
+{
+    "id": "my_expense",
+    "name": "记账本",
+    "database": {
+        "init_sql": "init.sql",
+        "version": 1
+    }
+}
+```
+
+### database 字段说明
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `init_sql` | string | ❌ | `null` | SQL 初始化文件路径（相对于插件目录），首次加载时自动执行 |
+| `version` | int | ❌ | `1` | 数据库版本号，用于版本迁移 |
+| `shared_group` | string | ❌ | `null` | 共享组名。设置后，同组插件共用一个数据库文件 |
+
+### 独立数据库（默认）
+
+不设置 `shared_group` 时，每个插件使用独立的数据库文件：
+
+```
+data/plugin_data/
+├── my_expense.db        # 独立数据库
+├── my_notes.db          # 独立数据库
+└── group_finance.db     # 共享数据库（见下文）
+```
+
+### 共享数据库
+
+多个插件声明相同的 `shared_group` 时，共用一个数据库文件：
+
+```json
+// 插件 A: plugin.json
+{ "id": "stock_tracker", "database": { "shared_group": "finance" } }
+
+// 插件 B: plugin.json
+{ "id": "fund_tracker", "database": { "shared_group": "finance" } }
+```
+
+两个插件都会使用 `data/plugin_data/group_finance.db`。
+
+### 在代码中使用数据库
+
+```python
+class MyWidget(PluginBase):
+    plugin_id = "my_expense"
+
+    def on_activate(self):
+        super().on_activate()
+        self._load_data()
+
+    def _load_data(self):
+        """读取数据"""
+        db = self.get_db()
+        try:
+            rows = db.execute("SELECT * FROM records ORDER BY date DESC").fetchall()
+            for row in rows:
+                # 处理数据...
+                pass
+        finally:
+            db.close()
+
+    def _add_record(self, amount, category):
+        """写入数据"""
+        db = self.get_db()
+        try:
+            db.execute(
+                "INSERT INTO records (amount, category, date) VALUES (?, ?, datetime('now'))",
+                (amount, category)
+            )
+            db.commit()
+        finally:
+            db.close()
+```
+
+### SQL 初始化文件
+
+创建 `init.sql` 文件定义表结构：
+
+```sql
+-- init.sql
+CREATE TABLE IF NOT EXISTS records (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    amount REAL NOT NULL,
+    category TEXT NOT NULL,
+    date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    note TEXT DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_records_date ON records(date);
+```
+
+首次加载插件时，Treas 自动执行此文件创建表。
+
+### 数据库版本迁移
+
+当 `version` 增大时，可覆盖 `on_db_upgrade` 方法执行迁移：
+
+```python
+class MyWidget(PluginBase):
+    plugin_id = "my_expense"
+
+    def on_db_upgrade(self, old_version: int, new_version: int):
+        """数据库版本迁移"""
+        db = self.get_db()
+        try:
+            if old_version < 2:
+                # v1 → v2: 添加 note 字段
+                db.execute("ALTER TABLE records ADD COLUMN note TEXT DEFAULT ''")
+            if old_version < 3:
+                # v2 → v3: 添加标签表
+                db.execute("""
+                    CREATE TABLE IF NOT EXISTS tags (
+                        id INTEGER PRIMARY KEY,
+                        name TEXT NOT NULL UNIQUE
+                    )
+                """)
+            db.commit()
+        finally:
+            db.close()
+```
+
+### 卸载时的数据处理
+
+用户删除自定义插件时，Treas 会弹出选项：
+- **保留数据并删除** — 仅删除插件文件，数据库文件保留（方便重新安装后恢复数据）
+- **彻底删除** — 同时删除数据库文件
+
+### 注意事项
+
+- **内置插件**使用公共 `Database` 单例，不适用此机制
+- `get_db()` 每次返回**新的连接**，使用完毕后务必 `db.close()`
+- 未配置 `database` 字段的插件调用 `self.get_db()` 会抛出 `RuntimeError`
+
+---
+
+## 8. 插件分享流程
 
 ### 导出插件
 
@@ -436,7 +584,7 @@ my_tool_v1.0.0.zip
 
 ---
 
-## 8. 最佳实践
+## 9. 最佳实践
 
 ### 命名规范
 
@@ -510,7 +658,7 @@ print(f"[MyPlugin] 调试信息: {value}")
 
 ---
 
-## 9. 完整示例（带第三方依赖）
+## 10. 完整示例（带第三方依赖）
 
 以下是一个完整的 HTTP 请求测试工具插件：
 
@@ -661,7 +809,7 @@ class HttpTesterWidget(PluginBase):
 
 ---
 
-## 10. 常见问题
+## 11. 常见问题
 
 ### Q: 插件没有出现在列表中？
 
