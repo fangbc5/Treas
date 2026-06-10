@@ -195,7 +195,12 @@ def draw_icon(size=CANVAS_SIZE):
                      fill=(255, 220, 80))
         font_size = int(cr * 1.2)
         try:
-            font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", font_size)
+            if sys.platform == 'darwin':
+                font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", font_size)
+            elif sys.platform == 'win32':
+                font = ImageFont.truetype("C:\\Windows\\Fonts\\arial.ttf", font_size)
+            else:
+                font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", font_size)
         except Exception:
             font = ImageFont.load_default()
         text = "$"
