@@ -189,23 +189,114 @@ class DependencyManager:
         progress_callback: 可选回调函数，用于报告进度
 
         返回: (success: bool, message: str)
+
+        跨平台兼容：
+        - 开发模式：subprocess + sys.executable
+        - 打包模式（PyInstaller frozen）：pip 内部模块直接调用
         """
         site_dir = get_plugins_site_packages_dir()
         self.ensure_site_packages_in_path()
 
         try:
-            cmd = [
-                sys.executable, "-m", "pip", "install",
-                "--target", site_dir,
-                "--quiet",
-                "--disable-pip-version-check",
-            ] + packages
+            if getattr(sys, 'frozen', False):
+                # 打包模式：pip 作为内部模块直接调用（不依赖外部 Python）
+                return self._install_via_pip_internal(packages, site_dir)
+            else:
+                # 开发模式：subprocess 调用
+                return self._install_via_subprocess(packages, site_dir)
 
+        except Exception as e:
+            return False, f"安装出错: {e}"
+
+    def _install_via_subprocess(self, packages: List[str],
+                                site_dir: str) -> Tuple[bool, str]:
+        """开发模式：通过 subprocess 调用 pip"""
+        cmd = [
+            sys.executable, "-m", "pip", "install",
+            "--target", site_dir,
+            "--quiet",
+            "--disable-pip-version-check",
+        ] + packages
+
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=300,  # 5 分钟超时
+        )
+
+        if result.returncode != 0:
+            return False, f"pip install 失败:\n{result.stderr}"
+
+        # 安装成功后更新数据库缓存
+        self._refresh_installed_packages()
+
+        return True, "依赖安装成功"
+
+    @staticmethod
+    def _find_system_python() -> Optional[str]:
+        """查找系统 Python 解释器路径
+
+        查找顺序：
+        1. shutil.which('python3') / shutil.which('python')
+        2. macOS: /usr/bin/python3
+        3. Windows: py 启动器
+        """
+        import os
+        import shutil
+        import platform
+
+        # 1. PATH 中查找
+        for name in (['python3', 'python'] if platform.system() != 'Windows'
+                     else ['python', 'python3']):
+            path = shutil.which(name)
+            if path:
+                return path
+
+        # 2. Windows: py 启动器
+        if platform.system() == 'Windows':
+            py_path = shutil.which('py')
+            if py_path:
+                return py_path
+
+        # 3. macOS 常见路径
+        if platform.system() == 'Darwin':
+            for p in ['/usr/bin/python3', '/usr/local/bin/python3']:
+                if os.path.isfile(p):
+                    return p
+
+        # 4. Linux 常见路径
+        for p in ['/usr/bin/python3', '/usr/local/bin/python3']:
+            if os.path.isfile(p):
+                return p
+
+        return None
+
+    def _install_via_pip_internal(self, packages: List[str],
+                                  site_dir: str) -> Tuple[bool, str]:
+        """打包模式：查找系统 Python 并通过 subprocess 调用 pip"""
+        import os
+
+        python_path = self._find_system_python()
+        if not python_path:
+            return (False,
+                    "未找到系统 Python，无法安装依赖。\n"
+                    "请安装 Python 3.9+ 后重试：https://www.python.org/downloads/")
+
+        cmd = [
+            python_path, "-m", "pip", "install",
+            "--target", site_dir,
+            "--quiet",
+            "--disable-pip-version-check",
+            "--no-warn-script-location",
+        ] + packages
+
+        try:
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=300,  # 5 分钟超时
+                timeout=300,
             )
 
             if result.returncode != 0:
@@ -218,6 +309,8 @@ class DependencyManager:
 
         except subprocess.TimeoutExpired:
             return False, "安装超时（5分钟），请检查网络连接"
+        except FileNotFoundError:
+            return False, f"未找到 Python: {python_path}\n请安装 Python 后重试。"
         except Exception as e:
             return False, f"安装出错: {e}"
 
