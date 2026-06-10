@@ -1,13 +1,12 @@
 """工具卡片组件 - 基于 QFluentWidgets CardWidget"""
 
 from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QSizePolicy
 
 
 from qfluentwidgets import (
     CardWidget, StrongBodyLabel, CaptionLabel,
-    PushButton, PrimaryPushButton, ToolButton, FluentIcon,
+    PushButton, ToolButton, FluentIcon,
 )
 
 from src.utils.icons import fluent_icon_from_name
