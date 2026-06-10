@@ -1,6 +1,7 @@
 """插件管理器 - 负责插件的发现、加载、注册"""
 
 import os
+import sys
 import json
 import importlib
 import importlib.util
@@ -128,6 +129,8 @@ class PluginManager:
             module_name = f"src.plugins.{plugin_id}.{os.path.splitext(entry_file)[0]}"
             spec = importlib.util.spec_from_file_location(module_name, entry_path)
             module = importlib.util.module_from_spec(spec)
+            # 注册到 sys.modules，使 _get_plugin_dir() 能正确定位插件目录
+            sys.modules[module_name] = module
             spec.loader.exec_module(module)
 
             # 获取插件类并实例化

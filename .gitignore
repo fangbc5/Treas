@@ -9,7 +9,7 @@ build/
 *.egg
 
 # 运行时数据（数据库、导出的插件包）
-data/*.db
+data/**.db
 exported/*.zip
 
 # 自定义插件（用户导入的，非内置）
