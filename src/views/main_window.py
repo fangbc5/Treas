@@ -1,6 +1,7 @@
 """主窗口 - 基于 QFluentWidgets FluentWindow"""
 
 import sys
+import os
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
@@ -8,6 +9,7 @@ from PyQt5.QtWidgets import (
     QInputDialog,
 )
 from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QDialog
 
 from qfluentwidgets import (
@@ -193,7 +195,20 @@ class MainWindow(FluentWindow):
         self.setWindowTitle("Treas - 淼淼百宝箱")
         self.setMinimumSize(900, 600)
         self.resize(1100, 700)
-        self.setWindowIcon(FluentIcon.APPLICATION.icon())
+        # 使用自定义图标（Windows 使用 ICO 含多尺寸，其他平台使用 PNG）
+        if sys.platform == 'win32':
+            icon_name = 'icon.ico'
+        else:
+            icon_name = 'icon_1024.png'
+        if getattr(sys, 'frozen', False):
+            icon_path = os.path.join(sys._MEIPASS, 'resources', icon_name)
+        else:
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            icon_path = os.path.join(project_root, 'resources', icon_name)
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+        else:
+            self.setWindowIcon(FluentIcon.APPLICATION.icon())
 
         # macOS：标题栏适配（DBeaver 风格 - 交通灯+标题独占一行，全宽）
         if sys.platform == 'darwin':

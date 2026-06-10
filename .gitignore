@@ -28,6 +28,9 @@ plugins/*
 .AppleDouble
 .LSOverride
 
+# 安装程序输出
+installer_output/
+
 # Windows
 Thumbs.db
 ehthumbs.db

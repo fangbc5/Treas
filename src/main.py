@@ -24,6 +24,14 @@ from src.views.main_window import MainWindow
 
 
 def main():
+    # Windows 任务栏图标：必须在 QApplication 创建之前设置 AppUserModelID
+    if sys.platform == 'win32':
+        import ctypes
+        try:
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('com.treas.app')
+        except Exception:
+            pass
+
     # 高 DPI 支持
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
@@ -51,11 +59,15 @@ def main():
     pm = PluginManager()
     pm.discover_plugins()
 
-    # 设置应用图标
-    if getattr(sys, 'frozen', False):
-        icon_path = os.path.join(sys._MEIPASS, 'resources', 'icon_1024.png')
+    # 设置应用图标（Windows 使用 ICO 含多尺寸，其他平台使用 PNG）
+    if sys.platform == 'win32':
+        icon_name = 'icon.ico'
     else:
-        icon_path = os.path.join(project_root, 'resources', 'icon_1024.png')
+        icon_name = 'icon_1024.png'
+    if getattr(sys, 'frozen', False):
+        icon_path = os.path.join(sys._MEIPASS, 'resources', icon_name)
+    else:
+        icon_path = os.path.join(project_root, 'resources', icon_name)
     if os.path.exists(icon_path):
         app.setWindowIcon(QIcon(icon_path))
 

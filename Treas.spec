@@ -25,6 +25,7 @@ a = Analysis(
         ('src/plugins', 'src/plugins'),
         # 图标资源
         ('resources/icon_1024.png', 'resources'),
+        ('resources/icon.ico', 'resources'),
     ],
     hiddenimports=[
         'src',
