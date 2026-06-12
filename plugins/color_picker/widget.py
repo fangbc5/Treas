@@ -195,7 +195,7 @@ class ColorPreviewCard(CardWidget):
 
 
 class HistoryColorCard(CardWidget):
-    clicked = pyqtSignal(str)
+    color_clicked = pyqtSignal(str)
 
     def __init__(self, hex_color, parent=None):
         super().__init__(parent)
@@ -213,7 +213,7 @@ class HistoryColorCard(CardWidget):
         painter.drawRoundedRect(self.rect(), 8, 8)
 
     def mousePressEvent(self, event):
-        self.clicked.emit(self._hex)
+        self.color_clicked.emit(self._hex)
         super().mousePressEvent(event)
 
 
@@ -398,7 +398,7 @@ class ColorPickerWidget(PluginBase):
         for i, (r, g, b) in enumerate(self._history):
             hex_str = rgb_to_hex(r, g, b)
             card = HistoryColorCard(hex_str)
-            card.clicked.connect(self._on_history_click)
+            card.color_clicked.connect(self._on_history_click)
             self._history_grid.addWidget(card, i // cols, i % cols)
 
     def _on_history_click(self, hex_str):

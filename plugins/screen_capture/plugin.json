@@ -1,0 +1,9 @@
+{
+    "id": "screen_capture",
+    "name": "屏幕截图",
+    "version": "1.0.0",
+    "description": "精美的屏幕截图工具，支持区域选择、复制到剪贴板、保存到文件",
+    "icon": "PHOTO",
+    "entry": "widget.py",
+    "entry_class": "ScreenCaptureWidget"
+}
