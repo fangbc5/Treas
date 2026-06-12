@@ -15,11 +15,11 @@ from PyQt5.QtWidgets import (
     QFileDialog,
 )
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QRect
-from PyQt5.QtGui import QColor, QPixmap, QPainter, QPen, QFont, QImage, QGuiApplication
+from PyQt5.QtGui import QColor, QPixmap, QPainter, QPen, QFont
 
 from qfluentwidgets import (
     PushButton, PrimaryPushButton, CaptionLabel, TitleLabel,
-    FluentIcon, InfoBar, InfoBarPosition, CardWidget,
+    InfoBar, InfoBarPosition,
 )
 
 from src.core.plugin_base import PluginBase
@@ -255,15 +255,14 @@ class ScreenCaptureWidget(PluginBase):
         pw = int(w * self._dpr)
         ph = int(h * self._dpr)
         self._cropped = self._snapshot.copy(px, py, pw, ph)
-        self._cropped.setDevicePixelRatio(self._dpr)
-        # 显示预览
+        # 保存/复制用原图（_cropped 是原始物理像素），预览缩小显示
+        physical_w, physical_h = pw, ph
         preview = self._cropped.scaled(
-            self._preview_label.width(), self._preview_label.height(),
-            Qt.KeepAspectRatio, Qt.SmoothTransformation
+            self._preview_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
         )
         self._preview_label.setPixmap(preview)
         self._preview_label.setStyleSheet("background-color: #2b2b2b; border-radius: 8px;")
-        self._info_label.setText(f"截图尺寸: {w} × {h} px")
+        self._info_label.setText(f"截图尺寸: {physical_w} × {physical_h} px")
         # 启用按钮
         self._copy_btn.setEnabled(True)
         self._save_btn.setEnabled(True)
@@ -278,7 +277,11 @@ class ScreenCaptureWidget(PluginBase):
 
     def _copy_to_clipboard(self):
         if hasattr(self, '_cropped') and self._cropped:
-            QApplication.clipboard().setPixmap(self._cropped)
+            # 重置 DPR 后复制，确保其他应用能正确识别
+            img = self._cropped.toImage()
+            img.setDevicePixelRatio(1.0)
+            clip_pix = QPixmap.fromImage(img)
+            QApplication.clipboard().setPixmap(clip_pix)
             InfoBar.success("已复制", "截图已复制到剪贴板",
                             parent=self, duration=1500, position=InfoBarPosition.TOP)
 
@@ -291,11 +294,8 @@ class ScreenCaptureWidget(PluginBase):
             "PNG 图片 (*.png);;JPEG 图片 (*.jpg);;BMP 图片 (*.bmp)"
         )
         if path:
-            # 保存时去掉 DPR，保存原始像素
-            save_img = self._cropped.toImage()
-            save_img.setDevicePixelRatio(1.0)
-            save_pix = QPixmap.fromImage(save_img)
-            save_pix.save(path)
+            # 保存原始物理像素
+            self._cropped.save(path)
             InfoBar.success("已保存", f"截图已保存到 {path}",
                             parent=self, duration=2000, position=InfoBarPosition.TOP)
 
