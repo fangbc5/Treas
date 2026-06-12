@@ -46,37 +46,43 @@ def is_light_color(r, g, b):
 class MagnifierWidget(QLabel):
     def __init__(self):
         super().__init__(None, Qt.ToolTip | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
-        self.setFixedSize(140, 140)
-        self._pixel_size = 10
-        self._grid_size = 14
+        self.setFixedSize(144, 144)
+        self._pixel_size = 16   # 每个格子的显示大小
+        self._grid_size = 9     # 9x9格子
         self._snapshot = None
 
     def set_snapshot(self, snapshot):
         self._snapshot = snapshot
 
-    def update_at(self, x, y):
+    def update_at(self, x, y, dpr=1.0):
         if self._snapshot is None:
             return
-        half = self._grid_size // 2
+        # 逻辑坐标转物理像素
+        px, py = int(x * dpr), int(y * dpr)
+        half = self._grid_size // 2  # =4，中心是第5格(索引4)
         src_rect = QPixmap.fromImage(self._snapshot.copy(
-            x - half, y - half, self._grid_size, self._grid_size
+            px - half, py - half, self._grid_size, self._grid_size
         ))
+        logical_size = self._pixel_size * self._grid_size  # 144
+        physical_size = int(logical_size * dpr)
         scaled = src_rect.scaled(
-            self._pixel_size * self._grid_size,
-            self._pixel_size * self._grid_size,
+            physical_size, physical_size,
             Qt.IgnoreAspectRatio, Qt.FastTransformation,
         )
+        scaled.setDevicePixelRatio(dpr)
         painter = QPainter(scaled)
-        painter.setPen(QPen(QColor(255, 255, 255, 40), 1))
+        # 网格线（用逻辑坐标）
+        ls = logical_size
+        painter.setPen(QPen(QColor(255, 255, 255, 60), 1))
         for i in range(self._grid_size + 1):
             offset = i * self._pixel_size
-            painter.drawLine(offset, 0, offset, scaled.height())
-            painter.drawLine(0, offset, scaled.width(), offset)
-        center = (self._grid_size // 2) * self._pixel_size
-        painter.setPen(QPen(QColor(255, 255, 255), 3))
-        painter.drawRect(center - 1, center - 1, self._pixel_size + 2, self._pixel_size + 2)
-        painter.setPen(QPen(QColor(0, 0, 0), 1))
-        painter.drawRect(center - 1, center - 1, self._pixel_size + 2, self._pixel_size + 2)
+            painter.drawLine(offset, 0, offset, ls)
+            painter.drawLine(0, offset, ls, offset)
+        # 中心格子（索引4）边框
+        c = 4 * self._pixel_size
+        ps = self._pixel_size
+        painter.setPen(QPen(QColor(255, 0, 0), 2))
+        painter.drawRect(c, c, ps, ps)
         painter.end()
         self.setPixmap(scaled)
         screen = QApplication.screenAt(QPoint(x, y))
@@ -84,12 +90,11 @@ class MagnifierWidget(QLabel):
             screen = QApplication.primaryScreen()
         geo = screen.geometry()
         fx, fy = x + 20, y + 20
-        if fx + 140 > geo.right():
-            fx = x - 160
-        if fy + 140 > geo.bottom():
-            fy = y - 160
+        if fx + 144 > geo.right():
+            fx = x - 164
+        if fy + 144 > geo.bottom():
+            fy = y - 164
         self.move(fx, fy)
-
 
 class PickOverlay(QWidget):
     color_picked = pyqtSignal(int, int, int)
@@ -111,6 +116,7 @@ class PickOverlay(QWidget):
         geo = screen.geometry()
         snapshot = screen.grabWindow(0, geo.x(), geo.y(), geo.width(), geo.height())
         self._snapshot_image = snapshot.toImage()
+        self._dpr = screen.devicePixelRatio()
         self.setGeometry(geo)
         self._magnifier.set_snapshot(self._snapshot_image)
         self.showNormal()
@@ -134,9 +140,11 @@ class PickOverlay(QWidget):
     def _on_tick(self):
         pos = QCursor.pos()
         x, y = pos.x(), pos.y()
-        self._magnifier.update_at(x, y)
-        if self._snapshot_image and self._snapshot_image.valid(x, y):
-            color = self._snapshot_image.pixelColor(x, y)
+        self._magnifier.update_at(x, y, self._dpr)
+        # 逻辑坐标转物理像素坐标
+        px, py = int(x * self._dpr), int(y * self._dpr)
+        if self._snapshot_image and self._snapshot_image.valid(px, py):
+            color = self._snapshot_image.pixelColor(px, py)
             self._current_color = (color.red(), color.green(), color.blue())
 
     def mousePressEvent(self, event):
