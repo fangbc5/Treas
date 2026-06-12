@@ -1,0 +1,13 @@
+{
+    "id": "color_picker",
+    "name": "屏幕取色器",
+    "version": "1.0.0",
+    "description": "精美的屏幕取色工具，支持 HEX / RGB / HSL 格式，一键复制，历史记录",
+    "icon": "PALETTE",
+    "category": "",
+    "entry": "widget.py",
+    "entry_class": "ColorPickerWidget",
+    "window_size": [420, 580],
+    "author": "Treas",
+    "dependencies": []
+}
