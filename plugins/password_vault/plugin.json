@@ -1,0 +1,17 @@
+{
+    "id": "password_vault",
+    "name": "密码保险箱",
+    "version": "1.0.0",
+    "description": "本地加密存储账号密码，支持多种模板、密码生成器和安全审计",
+    "icon": "CERTIFICATE",
+    "category": "安全工具",
+    "entry": "widget.py",
+    "entry_class": "PasswordVaultWidget",
+    "window_size": [700, 600],
+    "author": "Treas",
+    "dependencies": ["cryptography>=41.0"],
+    "database": {
+        "init_sql": "init.sql",
+        "version": 1
+    }
+}

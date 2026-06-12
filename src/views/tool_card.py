@@ -1,6 +1,7 @@
 """工具卡片组件 - 基于 QFluentWidgets CardWidget"""
 
 from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtGui import QFontMetrics
 from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QSizePolicy
 
 
@@ -98,12 +99,37 @@ class ToolCard(CardWidget):
 
         layout.addLayout(top_layout)
 
-        # 描述
+        # 描述（双行省略，hover 显示完整内容，避免高度被遮挡）
         desc = self.plugin_meta.get("description", "")
         if desc:
-            desc_label = CaptionLabel(desc)
+            desc_label = CaptionLabel()
             desc_label.setWordWrap(True)
-            desc_label.setMaximumHeight(40)
+            fm = QFontMetrics(desc_label.font())
+            text_width = 188  # 卡片宽度 220 - 左右 padding 32
+            max_lines = 2
+            line_height = fm.lineSpacing()
+            max_height = line_height * max_lines
+            desc_label.setFixedHeight(max_height)
+            # 计算文本在双行内是否溢出，溢出则截断并加省略号
+            # 注意：高度参数传很大的值，让 boundingRect 返回文本自然高度
+            natural_rect = fm.boundingRect(
+                0, 0, text_width, 100000,
+                int(Qt.TextFlag.TextWordWrap), desc,
+            )
+            if natural_rect.height() > max_height:
+                elided = desc
+                ellipsis = "…"
+                # 逐步删减最后一个字符直到能放入双行（含省略号）
+                while elided and fm.boundingRect(
+                    0, 0, text_width, 100000,
+                    int(Qt.TextFlag.TextWordWrap), elided + ellipsis,
+                ).height() > max_height:
+                    elided = elided[:-1]
+                desc_label.setText(elided.rstrip() + ellipsis)
+            else:
+                desc_label.setText(desc)
+            # hover 显示完整描述
+            desc_label.setToolTip(desc)
             layout.addWidget(desc_label)
 
         # 版本

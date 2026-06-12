@@ -1,0 +1,13 @@
+{
+    "id": "batch_rename_dir",
+    "name": "批量修改文件夹名称",
+    "version": "1.0.0",
+    "description": "批量重命名目录：扫描子目录导出到Excel，编辑后一键重命名",
+    "icon": "FOLDER",
+    "category": "",
+    "entry": "widget.py",
+    "entry_class": "BatchRenameDirWidget",
+    "window_size": [650, 700],
+    "author": "Treas",
+    "dependencies": ["openpyxl>=3.1"]
+}

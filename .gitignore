@@ -13,7 +13,7 @@ data/**.db
 exported/*.zip
 
 # 自定义插件（用户导入的，非内置）
-plugins/*
+plugins/.site-packages/
 !plugins/.gitkeep
 
 # IDE
