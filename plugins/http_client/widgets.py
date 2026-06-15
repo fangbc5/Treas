@@ -14,59 +14,112 @@ from qfluentwidgets import (
     ComboBox, TextEdit, TableWidget, CheckBox,
     TreeWidget as FluentTreeWidgetBase,
 )
+from qfluentwidgets.components.widgets.tree_view import TreeItemDelegate
+from qfluentwidgets.common.style_sheet import setCustomStyleSheet
 
 from constants import (
     METHOD_COLORS, BODY_TYPES, BODY_TYPE_LABELS, AUTH_TYPES, AUTH_TYPE_LABELS,
 )
 
 
+# 屏蔽 macOS 原生蓝色分支箭头（透明图片覆盖所有状态）
+_TREE_BRANCH_QSS = """
+QTreeView::branch {
+    background: transparent;
+}
+QTreeView::branch:has-siblings:adjoins-item,
+QTreeView::branch:has-siblings:!adjoins-item,
+QTreeView::branch:!has-children:!has-siblings:adjoins-item,
+QTreeView::branch:closed:has-children,
+QTreeView::branch:open:has-children {
+    border-image: none;
+    image: none;
+}
+"""
+
+
+class _ReadableTreeItemDelegate(TreeItemDelegate):
+    """自定义 delegate：强制选中态文字保持深色（可读）。
+
+    qfluentwidgets 的 TreeItemDelegate.initStyleOption 会根据 isDarkTheme()
+    覆盖文字颜色，导致在浅色主题下选中文字变白不可见。这里重写后始终使用
+    item 自身的前景色（由 setForeground 设置），保证选中态可见。
+    """
+
+    def initStyleOption(self, option, index):
+        super().initStyleOption(option, index)
+
+        # 优先使用 item 的 foreground（如请求方法的颜色），否则深灰
+        brush = index.data(Qt.ForegroundRole)
+        if brush is not None:
+            color = brush.color()
+        else:
+            color = QColor("#212121")
+
+        option.palette.setColor(QPalette.Text, color)
+        option.palette.setColor(QPalette.HighlightedText, color)
+
+
 class FluentTreeWidget(FluentTreeWidgetBase):
     """基于 qfluentwidgets.TreeWidget 的自定义树形控件。
 
-    覆盖 drawBranches 方法，自绘柔和灰色展开/折叠三角，
-    彻底消除 macOS 原生蓝色箭头问题。
-    同时通过样式表确保选中项文字可读（非白色）。
+    解决两个问题：
+    1. 选中集合名称变白看不见 —— 通过自定义 delegate 强制文字颜色。
+    2. 左侧展开三角变蓝 —— 通过 qss 屏蔽原生箭头 + 自绘灰色三角。
     """
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        # 选中态样式：浅色背景 + 深色文字，避免白色文字看不见
-        palette = self.palette()
-        palette.setColor(QPalette.HighlightedText, QColor("#212121"))
-        self.setPalette(palette)
+
+        # 1. 强制文字可读（关键修复：替换默认 delegate）
+        self.setItemDelegate(_ReadableTreeItemDelegate(self))
+
+        # 2. 屏蔽 macOS 原生蓝色箭头
+        setCustomStyleSheet(self, _TREE_BRANCH_QSS, _TREE_BRANCH_QSS)
+
+        # 3. 留出空间给自绘三角
+        self.setIndentation(20)
 
     def drawBranches(self, painter, rect, index):
-        """自绘灰色三角，不调用基类（阻止 macOS 原生蓝色箭头）"""
-        rect.moveLeft(15)
-
+        """自绘柔和灰色三角，并阻止基类绘制原生蓝色箭头。"""
+        # 不调用 super().drawBranches()，彻底阻断 macOS 原生箭头
         item = self.itemFromIndex(index)
         if item is None:
             return
 
-        if item.childCount() > 0:
-            painter.save()
-            painter.setRenderHint(QPainter.Antialiasing)
-            painter.setBrush(QColor("#9aa0a6"))
-            painter.setPen(Qt.NoPen)
+        # 只为有子项的节点绘制三角
+        if item.childCount() == 0:
+            return
 
-            sz = 4.5
-            cx = rect.center().x()
-            cy = rect.center().y()
+        painter.save()
+        painter.setRenderHint(QPainter.Antialiasing)
 
-            if self.isExpanded(index):
-                painter.drawPolygon(QPolygonF([
-                    QPointF(cx - sz, cy - sz * 0.5),
-                    QPointF(cx + sz, cy - sz * 0.5),
-                    QPointF(cx, cy + sz * 0.6),
-                ]))
-            else:
-                painter.drawPolygon(QPolygonF([
-                    QPointF(cx - sz * 0.4, cy - sz),
-                    QPointF(cx + sz * 0.7, cy),
-                    QPointF(cx - sz * 0.4, cy + sz),
-                ]))
+        # 始终使用柔和灰色，避免任何蓝色/紫色（符合用户预期）
+        from qfluentwidgets.common.style_sheet import isDarkTheme
+        color = QColor("#c0c4cc") if isDarkTheme() else QColor("#9aa0a6")
+        painter.setBrush(color)
+        painter.setPen(Qt.NoPen)
 
-            painter.restore()
+        cx = rect.center().x()
+        cy = rect.center().y()
+        sz = 4.5
+
+        if self.isExpanded(index):
+            # 向下的三角（展开状态）
+            painter.drawPolygon(QPolygonF([
+                QPointF(cx - sz, cy - sz * 0.5),
+                QPointF(cx + sz, cy - sz * 0.5),
+                QPointF(cx, cy + sz * 0.6),
+            ]))
+        else:
+            # 向右的三角（折叠状态）
+            painter.drawPolygon(QPolygonF([
+                QPointF(cx - sz * 0.4, cy - sz),
+                QPointF(cx + sz * 0.7, cy),
+                QPointF(cx - sz * 0.4, cy + sz),
+            ]))
+
+        painter.restore()
 
 
 class KeyValueTable(QWidget):

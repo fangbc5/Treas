@@ -1,0 +1,13 @@
+{
+    "id": "excel_data_processor",
+    "name": "Excel 数据处理",
+    "version": "1.0.0",
+    "description": "读取Excel模板表头，配置字段取值公式，从多个数据源按流水线填充输出",
+    "icon": "TABLE",
+    "category": "",
+    "entry": "widget.py",
+    "entry_class": "ExcelDataProcessorWidget",
+    "window_size": [900, 720],
+    "author": "Treas",
+    "dependencies": ["openpyxl>=3.1"]
+}
