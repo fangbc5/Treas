@@ -12,6 +12,9 @@ build/
 data/
 exported/*.zip
 
+# 测试数据（体积大、含真实业务数据，不入库）
+plugins/excel_data_processor/test_data/
+
 # 自定义插件（用户导入的，非内置）
 plugins/.site-packages/
 !plugins/.gitkeep
