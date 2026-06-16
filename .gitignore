@@ -11,6 +11,7 @@ build/
 # 运行时数据（数据库、导出的插件包）
 data/
 exported/*.zip
+output.xlsx
 
 # 测试数据（体积大、含真实业务数据，不入库）
 plugins/excel_data_processor/test_data/

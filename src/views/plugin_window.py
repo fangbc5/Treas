@@ -31,7 +31,9 @@ class PluginWindow(QMainWindow):
         win_size = meta.get("window_size", None)
         if win_size and len(win_size) == 2:
             w, h = win_size
-            self.setMinimumSize(w, h)
+            # 不锁死窗口最小尺寸为 win_size，允许用户缩小窗口；
+            # 默认尺寸仍按 win_size 打开，内容自适应收缩
+            self.setMinimumSize(600, 500)
             self.resize(w, h)
         else:
             self.setMinimumSize(600, 500)
@@ -55,6 +57,8 @@ class PluginWindow(QMainWindow):
             scroll = QScrollArea()
             scroll.setWidgetResizable(True)
             scroll.setFrameShape(QScrollArea.NoFrame)
+            # 禁用水平滚动条：内容应随窗口宽度自适应收缩，只保留垂直滚动
+            scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
             scroll.setWidget(widget)
             layout.addWidget(scroll)
 

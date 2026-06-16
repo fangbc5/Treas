@@ -131,14 +131,17 @@ def write_output(
     wb = load_workbook(output_path)
     ws = wb.active
 
-    enabled_fields = [f for f in fields if f.enabled]
-
+    # 按原始模板列顺序写入；禁用字段（enabled=False）列留空，保证列与表头对齐
     for row_idx, row_data in enumerate(rows, start=2):
-        for col_idx, field in enumerate(enabled_fields, start=1):
+        for col_idx, field in enumerate(fields, start=1):
             cell = ws.cell(row=row_idx, column=col_idx)
-            val = row_data.get(field.name, "")
-            # 强制文本格式
-            cell.value = str(val) if val is not None else ""
+            if field.enabled:
+                val = row_data.get(field.name, "")
+                # 强制文本格式
+                cell.value = str(val) if val is not None else ""
+            else:
+                # 禁用字段不参与输出，该列数据留空
+                cell.value = None
             cell.number_format = "@"
 
     wb.save(output_path)

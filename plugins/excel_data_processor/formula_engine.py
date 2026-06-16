@@ -59,6 +59,7 @@ class FormulaEngine:
             "SEQ": self._seq,
             "SEARCH": self._search,
             "LOOKUPI": self._lookipi,
+            "SPLIT": self._split,
         }
 
     def evaluate(self, formula: str, ctx: RowContext):
@@ -430,7 +431,7 @@ class FormulaEngine:
     def _lookipi(self, args, ctx):
         """LOOKUPI(查找值, 数据源!查找列, 数据源!返回列) - 包含匹配查找
 
-        在查找列中找第一个「包含」查找值的单元格，
+        在查找列中找第一个「包含」查找值且返回列非空的单元格，
         返回该行返回列的值。查找列和返回列可任意位置（不受列顺序限制）。
         找不到返回空字符串。
         """
@@ -445,5 +446,24 @@ class FormulaEngine:
         for row in lookup_src.rows:
             cell_val = str(row.get(lookup_col) or "")
             if lookup_val in cell_val:
-                return row.get(return_col)
+                ret = row.get(return_col)
+                if ret is not None and str(ret).strip():
+                    return ret
+                # 返回值为空，继续查找下一个匹配行
+        return ""
+    def _split(self, args, ctx):
+        """SPLIT(值, 分隔符, 索引) - 字符串分割
+
+        按分隔符分割字符串，返回指定索引的段。
+        例: SPLIT("1000000223 国网河北...", " ", 1) → "国网河北..."
+        索引超出范围返回空字符串。
+        """
+        if len(args) < 3:
+            raise FormulaError("SPLIT 需要3个参数")
+        value = str(self._eval_expr(args[0], ctx) or "")
+        sep = str(self._eval_expr(args[1], ctx))
+        idx = int(self._eval_expr(args[2], ctx))
+        parts = value.split(sep)
+        if 0 <= idx < len(parts):
+            return parts[idx].strip()
         return ""

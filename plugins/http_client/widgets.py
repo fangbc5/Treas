@@ -15,27 +15,10 @@ from qfluentwidgets import (
     TreeWidget as FluentTreeWidgetBase,
 )
 from qfluentwidgets.components.widgets.tree_view import TreeItemDelegate
-from qfluentwidgets.common.style_sheet import setCustomStyleSheet
 
 from constants import (
     METHOD_COLORS, BODY_TYPES, BODY_TYPE_LABELS, AUTH_TYPES, AUTH_TYPE_LABELS,
 )
-
-
-# 屏蔽 macOS 原生蓝色分支箭头（透明图片覆盖所有状态）
-_TREE_BRANCH_QSS = """
-QTreeView::branch {
-    background: transparent;
-}
-QTreeView::branch:has-siblings:adjoins-item,
-QTreeView::branch:has-siblings:!adjoins-item,
-QTreeView::branch:!has-children:!has-siblings:adjoins-item,
-QTreeView::branch:closed:has-children,
-QTreeView::branch:open:has-children {
-    border-image: none;
-    image: none;
-}
-"""
 
 
 class _ReadableTreeItemDelegate(TreeItemDelegate):
@@ -65,20 +48,16 @@ class FluentTreeWidget(FluentTreeWidgetBase):
 
     解决两个问题：
     1. 选中集合名称变白看不见 —— 通过自定义 delegate 强制文字颜色。
-    2. 左侧展开三角变蓝 —— 通过 qss 屏蔽原生箭头 + 自绘灰色三角。
+    2. 左侧展开三角变蓝 —— 重写 drawBranches 且不调 super，自绘柔和灰色三角，
+       彻底阻断 macOS 原生蓝色箭头（无需额外 QSS，避免与 qfluentwidgets 样式
+       冲突导致内容整体右移）。
     """
 
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        # 1. 强制文字可读（关键修复：替换默认 delegate）
+        # 强制文字可读（关键修复：替换默认 delegate，防止选中态文字变白）
         self.setItemDelegate(_ReadableTreeItemDelegate(self))
-
-        # 2. 屏蔽 macOS 原生蓝色箭头
-        setCustomStyleSheet(self, _TREE_BRANCH_QSS, _TREE_BRANCH_QSS)
-
-        # 3. 留出空间给自绘三角
-        self.setIndentation(20)
 
     def drawBranches(self, painter, rect, index):
         """自绘柔和灰色三角，并阻止基类绘制原生蓝色箭头。"""

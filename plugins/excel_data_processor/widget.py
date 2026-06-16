@@ -14,7 +14,7 @@ from PyQt5.QtWidgets import (
     QTableWidget, QTableWidgetItem, QTabWidget, QHeaderView,
     QMessageBox, QInputDialog, QLabel,
     QListWidget, QListWidgetItem, QDialog,
-    QDialogButtonBox, QLineEdit,
+    QDialogButtonBox, QLineEdit, QSizePolicy,
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 
@@ -146,45 +146,53 @@ class ExcelDataProcessorWidget(PluginBase):
         hint = CaptionLabel("字段按顺序执行。{字段名} 引用前序字段已计算的值。勾选「种子」列指定种子字段，种子字段公式填写「数据源名!列名」指定取值列。")
         lay.addWidget(hint)
 
-        btn_row = QHBoxLayout()
+        # 第一行：字段编辑操作
+        btn_row1 = QHBoxLayout()
         reset_btn = PushButton("🔄 重置字段")
         reset_btn.clicked.connect(self._reset_fields)
-        btn_row.addWidget(reset_btn)
+        btn_row1.addWidget(reset_btn)
 
         del_btn = PushButton("🗑️ 删除字段")
         del_btn.clicked.connect(self._delete_field)
-        btn_row.addWidget(del_btn)
+        btn_row1.addWidget(del_btn)
+
+        restore_btn = PushButton("♻️ 恢复字段")
+        restore_btn.clicked.connect(self._restore_field)
+        btn_row1.addWidget(restore_btn)
 
         up_btn = PushButton("⬆️ 上移")
         up_btn.clicked.connect(lambda: self._move_field(-1))
-        btn_row.addWidget(up_btn)
+        btn_row1.addWidget(up_btn)
 
         down_btn = PushButton("⬇️ 下移")
         down_btn.clicked.connect(lambda: self._move_field(1))
-        btn_row.addWidget(down_btn)
+        btn_row1.addWidget(down_btn)
 
-        btn_row.addSpacing(16)
+        btn_row1.addStretch()
+        lay.addLayout(btn_row1)
 
+        # 第二行：配置管理
+        btn_row2 = QHBoxLayout()
         save_btn = PushButton("💾 保存配置")
         save_btn.clicked.connect(self._save_config_dialog)
-        btn_row.addWidget(save_btn)
+        btn_row2.addWidget(save_btn)
 
         load_btn = PushButton("📂 加载配置")
         load_btn.clicked.connect(self._load_config_dialog)
-        btn_row.addWidget(load_btn)
+        btn_row2.addWidget(load_btn)
 
         manage_btn = PushButton("🗂️ 管理配置")
         manage_btn.clicked.connect(self._manage_configs_dialog)
-        btn_row.addWidget(manage_btn)
+        btn_row2.addWidget(manage_btn)
 
-        # 去重勾选（种子字段去重），放在管理配置右侧
+        # 去重勾选（种子字段去重）
         self._dedup_check = CheckBox("🌱种子去重")
         self._dedup_check.setChecked(True)
         self._dedup_check.setToolTip("对种子字段提取的值去重")
-        btn_row.addWidget(self._dedup_check)
+        btn_row2.addWidget(self._dedup_check)
 
-        btn_row.addStretch()
-        lay.addLayout(btn_row)
+        btn_row2.addStretch()
+        lay.addLayout(btn_row2)
 
         # 字段表格：5列（名称/类型/精度/公式/种子）
         self._fields_table = QTableWidget(0, 5)
@@ -192,12 +200,15 @@ class ExcelDataProcessorWidget(PluginBase):
             ["字段名称", "取值类型", "精度", "取值逻辑（公式）", "种子"]
         )
         header = self._fields_table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(2, QHeaderView.Fixed)
+        # 全部使用可收缩模式，避免 ResizeToContents 撑爆宽度导致水平滚动
+        header.setSectionResizeMode(0, QHeaderView.Interactive)
+        self._fields_table.setColumnWidth(0, 150)
+        header.setSectionResizeMode(1, QHeaderView.Interactive)
+        self._fields_table.setColumnWidth(1, 100)
+        header.setSectionResizeMode(2, QHeaderView.Interactive)
         self._fields_table.setColumnWidth(2, 80)
         header.setSectionResizeMode(3, QHeaderView.Stretch)
-        header.setSectionResizeMode(4, QHeaderView.Fixed)
+        header.setSectionResizeMode(4, QHeaderView.Interactive)
         self._fields_table.setColumnWidth(4, 60)
         self._fields_table.verticalHeader().setDefaultSectionSize(44)
         self._fields_table.verticalHeader().setMinimumSectionSize(44)
@@ -207,10 +218,19 @@ class ExcelDataProcessorWidget(PluginBase):
 
     def _refresh_fields_table(self):
         table = self._fields_table
+        # 先清除所有 cellWidget（安全断开信号），避免 setRowCount 缩减行数时
+        # widget 析构触发 textChanged 等信号访问已变更的 _fields 导致越界崩溃
+        table.clearContents()
         table.setRowCount(len(self._fields))
         for i, f in enumerate(self._fields):
             name_item = QTableWidgetItem(f.name)
             name_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+            # 禁用字段（已删除）应用灰色+删除线样式
+            if not f.enabled:
+                name_item.setForeground(Qt.gray)
+                font = name_item.font()
+                font.setStrikeOut(True)
+                name_item.setFont(font)
             table.setItem(i, 0, name_item)
 
             type_combo = ComboBox()
@@ -229,6 +249,11 @@ class ExcelDataProcessorWidget(PluginBase):
             table.setCellWidget(i, 2, prec)
 
             formula_edit = LineEdit()
+            # qfluentwidgets LineEdit 默认 setFixedHeight(33)，无法填满 44px 表格行高，
+            # 解除固定高度限制，让控件跟随单元格行高
+            formula_edit.setMinimumHeight(0)
+            formula_edit.setMaximumHeight(16777215)
+            formula_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
             formula_edit.setText(f.formula)
             if f.is_seed:
                 formula_edit.setPlaceholderText("如: 数据源名!列名")
@@ -297,22 +322,47 @@ class ExcelDataProcessorWidget(PluginBase):
             self._rebuild_fields(self._original_headers)
 
     def _delete_field(self):
+        """删除字段：软删除（enabled=False），不参与计算和输出，保留列占位避免错位"""
         row = self._fields_table.currentRow()
         if row < 0:
             InfoBar.warning("提示", "请先在表格中选择要删除的字段行",
                             parent=self, duration=2000, position=InfoBarPosition.TOP)
             return
-        if len(self._fields) <= 1:
-            InfoBar.warning("提示", "至少需要保留一个字段",
+        f = self._fields[row]
+        if not f.enabled:
+            InfoBar.warning("提示", "该字段已删除，无需重复操作",
                             parent=self, duration=2000, position=InfoBarPosition.TOP)
             return
-        if self._fields[row].is_seed:
+        if f.is_seed:
             InfoBar.warning("提示", "种子字段不可删除，请先将其他字段设为种子",
                             parent=self, duration=2500, position=InfoBarPosition.TOP)
             return
-        del self._fields[row]
+        # 至少保留一个启用的非种子字段可删（种子不可删，所以检查启用的非种子字段数）
+        enabled_non_seed = sum(1 for x in self._fields if x.enabled and not x.is_seed)
+        if enabled_non_seed <= 0:
+            InfoBar.warning("提示", "至少需要保留一个启用字段",
+                            parent=self, duration=2000, position=InfoBarPosition.TOP)
+            return
+        f.enabled = False
         self._refresh_fields_table()
-        InfoBar.success("已删除", parent=self, duration=1500, position=InfoBarPosition.TOP)
+        InfoBar.success("已删除", "该字段将不参与输出（可点击「恢复字段」还原）",
+                        parent=self, duration=2500, position=InfoBarPosition.TOP)
+
+    def _restore_field(self):
+        """恢复已删除的字段（enabled=True）"""
+        row = self._fields_table.currentRow()
+        if row < 0:
+            InfoBar.warning("提示", "请先在表格中选择要恢复的字段行",
+                            parent=self, duration=2000, position=InfoBarPosition.TOP)
+            return
+        f = self._fields[row]
+        if f.enabled:
+            InfoBar.warning("提示", "该字段未被删除，无需恢复",
+                            parent=self, duration=2000, position=InfoBarPosition.TOP)
+            return
+        f.enabled = True
+        self._refresh_fields_table()
+        InfoBar.success("已恢复", parent=self, duration=1500, position=InfoBarPosition.TOP)
 
     def _move_field(self, direction):
         row = self._fields_table.currentRow()
@@ -502,6 +552,7 @@ class ExcelDataProcessorWidget(PluginBase):
                 "precision": f.precision,
                 "formula": f.formula,
                 "is_seed": f.is_seed,
+                "enabled": f.enabled,
             }
             for f in self._fields
         ]
@@ -568,12 +619,14 @@ class ExcelDataProcessorWidget(PluginBase):
         new_fields = []
         for i, fd in enumerate(fields_data):
             is_seed = fd.get("is_seed", i == 0)
+            enabled = fd.get("enabled", True)
             new_fields.append(FieldConfig(
                 name=fd.get("name", f"字段{i+1}"),
                 value_type=fd.get("value_type", "text"),
                 precision=fd.get("precision", 2),
                 formula=fd.get("formula", ""),
                 is_seed=is_seed,
+                enabled=enabled,
             ))
         if not new_fields:
             return False, "配置中没有字段"
@@ -788,34 +841,48 @@ class ExcelDataProcessorWidget(PluginBase):
         self._source_table.setHorizontalHeaderLabels(
             ["名称", "文件", "Sheet", "透视", "透视配置", "操作"]
         )
-        self._source_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        sh = self._source_table.horizontalHeader()
+        sh.setSectionResizeMode(0, QHeaderView.Interactive)   # 名称
+        self._source_table.setColumnWidth(0, 120)
+        sh.setSectionResizeMode(1, QHeaderView.Stretch)        # 文件（弹性填充）
+        sh.setSectionResizeMode(2, QHeaderView.Interactive)   # Sheet
+        self._source_table.setColumnWidth(2, 100)
+        sh.setSectionResizeMode(3, QHeaderView.Interactive)   # 透视
+        self._source_table.setColumnWidth(3, 60)
+        sh.setSectionResizeMode(4, QHeaderView.Stretch)        # 透视配置（弹性）
+        sh.setSectionResizeMode(5, QHeaderView.Interactive)   # 操作
+        self._source_table.setColumnWidth(5, 80)
         lay.addWidget(self._source_table, 1)
 
         self._tabs.addTab(tab, "📂 数据源")
 
     def _add_source(self):
-        path, _ = QFileDialog.getOpenFileName(
-            self, "选择数据源 Excel", "", "Excel 文件 (*.xlsx *.xls)"
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "选择数据源 Excel（可多选）", "", "Excel 文件 (*.xlsx *.xls)"
         )
-        if not path:
+        if not paths:
             return
-        name = os.path.splitext(os.path.basename(path))[0]
-        base = name
-        i = 2
-        while name in self._data_sources:
-            name = f"{base}{i}"
-            i += 1
-        ds = DataSourceConfig(name=name, file_path=path, sheet_name="")
-        try:
-            from openpyxl import load_workbook
-            wb = load_workbook(path, read_only=True)
-            if wb.sheetnames:
-                ds.sheet_name = wb.sheetnames[0]
-            wb.close()
-        except Exception:
-            pass
-        self._data_sources[name] = ds
+        for path in paths:
+            name = os.path.splitext(os.path.basename(path))[0]
+            base = name
+            i = 2
+            while name in self._data_sources:
+                name = f"{base}{i}"
+                i += 1
+            ds = DataSourceConfig(name=name, file_path=path, sheet_name="")
+            try:
+                from openpyxl import load_workbook
+                wb = load_workbook(path, read_only=True)
+                if wb.sheetnames:
+                    ds.sheet_name = wb.sheetnames[0]
+                wb.close()
+            except Exception:
+                pass
+            self._data_sources[name] = ds
         self._refresh_source_table()
+        if len(paths) > 1:
+            InfoBar.success("已添加", f"已批量添加 {len(paths)} 个数据源",
+                            parent=self, duration=2500, position=InfoBarPosition.TOP)
 
     def _del_source(self):
         row = self._source_table.currentRow()
